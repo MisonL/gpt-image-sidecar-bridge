@@ -1,0 +1,9 @@
+node_modules/
+*.log
+*.tmp
+.DS_Store
+.env
+.env.*
+adapter-api-key
+second-site-email
+second-site-password
