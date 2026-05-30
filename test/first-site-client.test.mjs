@@ -61,6 +61,32 @@ test('sends first-site edit requests and parses completed SSE events', async () 
   assert.equal(edit.options.body.getAll('image').length, 1);
 });
 
+test('retries first-site image downloads while storage is becoming ready', async () => {
+  const calls = [];
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/api/images/generate')) {
+        return jsonResponse(200, firstSiteImageBody());
+      }
+      if (url.endsWith('/api/storage/generated.png')) {
+        const attempts = calls.filter((call) => call.url.endsWith('/api/storage/generated.png')).length;
+        if (attempts === 1) return jsonResponse(400, { message: 'not ready' });
+        return imageResponse('image-bytes');
+      }
+      throw new Error(`unexpected url: ${url}`);
+    }
+  });
+
+  const result = await client.generate({ prompt: 'hello' });
+  const downloads = calls.filter((call) => call.url.endsWith('/api/storage/generated.png'));
+
+  assert.equal(result.data[0].b64_json, Buffer.from('image-bytes').toString('base64'));
+  assert.equal(downloads.length, 2);
+});
+
 test('rejects image edits without a source image before contacting the first site', async () => {
   const client = createFirstSiteClient({
     baseUrl: 'https://first.example.test',
@@ -114,10 +140,7 @@ function firstSiteFetch(url, options, calls) {
     return textResponse(200, firstSiteEditStream(), 'text/event-stream');
   }
   if (url.endsWith('/api/storage/generated.png')) {
-    return new Response(Buffer.from('image-bytes'), {
-      status: 200,
-      headers: { 'content-type': 'image/png' }
-    });
+    return imageResponse('image-bytes');
   }
   throw new Error(`unexpected url: ${url}`);
 }
@@ -155,5 +178,12 @@ function textResponse(status, body, contentType) {
   return new Response(body, {
     status,
     headers: { 'content-type': contentType }
+  });
+}
+
+function imageResponse(body) {
+  return new Response(Buffer.from(body), {
+    status: 200,
+    headers: { 'content-type': 'image/png' }
   });
 }

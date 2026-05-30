@@ -2,6 +2,10 @@ import { AdapterError } from './adapter-error.mjs';
 import { VALID_BACKGROUND_VALUES, VALID_QUALITY_VALUES } from './first-site-config.mjs';
 import { redactSensitiveDetails } from './redact-sensitive-details.mjs';
 
+const IMAGE_FETCH_MAX_ATTEMPTS = 4;
+const IMAGE_FETCH_RETRY_DELAY_MS = 1000;
+const IMAGE_FETCH_RETRY_STATUSES = new Set([400, 404, 409, 425, 429, 500, 502, 503, 504]);
+
 export function buildGenerationBody(input, normalized, config) {
   const body = {
     prompt: normalized.prompt,
@@ -143,10 +147,7 @@ async function outputToOpenAIImage(config, output, cookie) {
 
 async function fetchImageBase64(config, imageUrl, cookie) {
   const url = new URL(imageUrl, config.baseUrl).toString();
-  const response = await fetchWithTimeout(config, url, {
-    method: 'GET',
-    headers: imageHeaders(config, cookie)
-  });
+  const response = await fetchImageWithRetry(config, url, cookie);
   if (!response.ok) {
     throw upstreamError(response.status, { message: 'First site image download failed.' }, 'first_site_image_fetch_failed');
   }
@@ -155,6 +156,29 @@ async function fetchImageBase64(config, imageUrl, cookie) {
     throw upstreamError(502, { message: 'First site image download returned non-image content.' }, 'first_site_image_fetch_failed');
   }
   return Buffer.from(await response.arrayBuffer()).toString('base64');
+}
+
+async function fetchImageWithRetry(config, url, cookie) {
+  let response;
+  for (let attempt = 1; attempt <= IMAGE_FETCH_MAX_ATTEMPTS; attempt += 1) {
+    response = await fetchWithTimeout(config, url, {
+      method: 'GET',
+      headers: imageHeaders(config, cookie)
+    });
+    if (!shouldRetryImageFetch(response.status, attempt)) {
+      return response;
+    }
+    await delay(IMAGE_FETCH_RETRY_DELAY_MS);
+  }
+  return response;
+}
+
+function shouldRetryImageFetch(status, attempt) {
+  return attempt < IMAGE_FETCH_MAX_ATTEMPTS && IMAGE_FETCH_RETRY_STATUSES.has(status);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function jsonHeaders(config, cookie) {
