@@ -1,6 +1,10 @@
 import { AdapterError } from './adapter-error.mjs';
 
 const VALID_OUTPUT_FORMATS = new Set(['png', 'jpeg', 'webp']);
+const VALID_QUALITY_VALUES = new Set(['auto', 'low', 'medium', 'high']);
+const VALID_BACKGROUND_VALUES = new Set(['auto', 'opaque', 'transparent']);
+const VALID_MODERATION_VALUES = new Set(['auto', 'low']);
+const VALID_THINKING_VALUES = new Set(['low', 'medium', 'high', 'none']);
 
 export function normalizeGenerationRequest(input, defaults = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -29,6 +33,168 @@ export function normalizeGenerationRequest(input, defaults = {}) {
     });
   }
   return buildGenerationBody(input, defaults, { prompt, n, responseFormat });
+}
+
+export async function normalizeEditRequest(input, defaults = {}) {
+  const form = await readEditForm(input);
+  const prompt = readRequiredFormString(form, 'prompt');
+  const images = readImageFiles(form);
+  const mask = readOptionalFile(form, 'mask');
+  const responseFormat = readResponseFormat(formFieldsToObject(form));
+  if (responseFormat !== 'b64_json') {
+    throw new AdapterError('Only b64_json response_format is supported.', {
+      status: 400,
+      code: 'unsupported_response_format'
+    });
+  }
+  const n = readIntegerField(form, 'n', 1, { min: 1, max: 5, code: 'invalid_image_count' });
+  const outputFormat = normalizeOutputFormat(readFormString(form, 'output_format') || defaults.outputFormat || 'png');
+  return {
+    prompt,
+    images,
+    mask,
+    n,
+    response_format: responseFormat,
+    output_format: outputFormat,
+    size: readEditSize(form),
+    model: readFormString(form, 'model') || readDefaultString(defaults.model, 'gpt-image-2'),
+    quality: normalizeEnum(readFormString(form, 'quality') || defaults.quality || 'auto', VALID_QUALITY_VALUES, {
+      message: 'quality must be auto, low, medium, or high.',
+      code: 'invalid_quality'
+    }),
+    moderation: normalizeEnum(readFormString(form, 'moderation') || defaults.moderation || 'auto', VALID_MODERATION_VALUES, {
+      message: 'moderation must be auto or low.',
+      code: 'invalid_moderation'
+    }),
+    background: normalizeEnum(readFormString(form, 'background') || defaults.background || 'auto', VALID_BACKGROUND_VALUES, {
+      message: 'background must be auto, opaque, or transparent.',
+      code: 'invalid_background'
+    }),
+    thinking: normalizeEnum(readFormString(form, 'thinking') || defaults.thinking || 'low', VALID_THINKING_VALUES, {
+      message: 'thinking must be low, medium, high, or none.',
+      code: 'invalid_thinking'
+    })
+  };
+}
+
+async function readEditForm(input) {
+  if (input instanceof FormData) return input;
+  if (input instanceof Request) {
+    try {
+      return await input.formData();
+    } catch {
+      throw new AdapterError('Request body must be multipart/form-data.', {
+        status: 400,
+        code: 'invalid_multipart_form'
+      });
+    }
+  }
+  throw new AdapterError('Request body must be multipart/form-data.', {
+    status: 400,
+    code: 'invalid_multipart_form'
+  });
+}
+
+function readRequiredFormString(form, field) {
+  const value = readFormString(form, field).trim();
+  if (!value) {
+    throw new AdapterError(`${field} is required.`, { status: 400, code: `missing_${field}` });
+  }
+  return value;
+}
+
+function readFormString(form, field) {
+  const value = form.get(field);
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'string') {
+    throw new AdapterError(`${field} must be a string.`, { status: 400, code: `invalid_${field}` });
+  }
+  return value;
+}
+
+function readImageFiles(form) {
+  const files = [...form.getAll('image'), ...form.getAll('image[]')].filter((item) => isFileLike(item));
+  if (files.length === 0) {
+    throw new AdapterError('image is required.', { status: 400, code: 'missing_image' });
+  }
+  if (files.length > 16) {
+    throw new AdapterError('image supports at most 16 files.', { status: 400, code: 'invalid_image_count' });
+  }
+  for (const file of files) {
+    validateImageFile(file, 'image');
+  }
+  return files;
+}
+
+function readOptionalFile(form, field) {
+  const value = form.get(field);
+  if (value === null || value === undefined || value === '') return null;
+  if (!isFileLike(value)) {
+    throw new AdapterError(`${field} must be a file.`, { status: 400, code: `invalid_${field}` });
+  }
+  validateImageFile(value, field);
+  return value;
+}
+
+function isFileLike(value) {
+  return (
+    value &&
+    typeof value === 'object' &&
+    typeof value.arrayBuffer === 'function' &&
+    typeof value.name === 'string' &&
+    typeof value.size === 'number' &&
+    typeof value.type === 'string'
+  );
+}
+
+function validateImageFile(file, field) {
+  if (file.size <= 0) {
+    throw new AdapterError(`${field} file must not be empty.`, { status: 400, code: `invalid_${field}` });
+  }
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    throw new AdapterError(`${field} must be PNG, JPEG, or WebP.`, { status: 400, code: `invalid_${field}` });
+  }
+}
+
+function readIntegerField(form, field, fallback, options) {
+  const raw = readFormString(form, field);
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < options.min || value > options.max) {
+    throw new AdapterError(`${field} must be an integer from ${options.min} to ${options.max}.`, {
+      status: 400,
+      code: options.code
+    });
+  }
+  return value;
+}
+
+function readEditSize(form) {
+  const value = readFormString(form, 'size');
+  if (!value || value === 'auto') return 'auto';
+  if (!parseSize(value)) {
+    throw new AdapterError('size must be auto or WxH.', { status: 400, code: 'invalid_size' });
+  }
+  return value;
+}
+
+function formFieldsToObject(form) {
+  const output = {};
+  for (const [key, value] of form.entries()) {
+    if (typeof value === 'string') output[key] = value;
+  }
+  return output;
+}
+
+function normalizeEnum(value, allowed, options) {
+  if (typeof value !== 'string') {
+    throw new AdapterError(options.message, { status: 400, code: options.code });
+  }
+  const normalized = value.toLowerCase();
+  if (!allowed.has(normalized)) {
+    throw new AdapterError(options.message, { status: 400, code: options.code });
+  }
+  return normalized;
 }
 
 function validateStream(input) {

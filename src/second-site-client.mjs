@@ -1,78 +1,76 @@
-import { readFileSync } from 'node:fs';
-
 import { AdapterError } from './adapter-error.mjs';
 import { normalizeGenerationRequest } from './openai-image-request.mjs';
 import { redactSensitiveDetails } from './redact-sensitive-details.mjs';
+import { readSecretOption } from './secrets.mjs';
 
 export { AdapterError } from './adapter-error.mjs';
 export { normalizeGenerationRequest } from './openai-image-request.mjs';
+export { readSecretOption } from './secrets.mjs';
 
 export function createSecondSiteClient(options = {}) {
   const config = readConfig(options);
-  let cachedToken = config.token;
-  let loginPromise;
+  const state = { config, cachedToken: config.token, loginPromise: undefined };
 
-  async function login() {
-    if (loginPromise) {
-      return loginPromise;
-    }
-    loginPromise = performLogin().finally(() => {
-      loginPromise = undefined;
+  return {
+    generate: (input) => generate(state, input),
+    login: () => login(state)
+  };
+}
+
+async function login(state) {
+  if (state.loginPromise) return state.loginPromise;
+  state.loginPromise = performLogin(state).finally(() => {
+    state.loginPromise = undefined;
+  });
+  return state.loginPromise;
+}
+
+async function performLogin(state) {
+  if (!state.config.email || !state.config.password) {
+    throw new AdapterError('Second site login credentials are not configured.', {
+      status: 500,
+      code: 'missing_second_site_credentials'
     });
-    return loginPromise;
   }
-
-  async function performLogin() {
-    if (!config.email || !config.password) {
-      throw new AdapterError('Second site login credentials are not configured.', {
-        status: 500,
-        code: 'missing_second_site_credentials'
-      });
-    }
-
-    const response = await fetchWithTimeout(config, `${config.baseUrl}/v1/auth/login`, {
-      method: 'POST',
-      headers: jsonHeaders(),
-      body: JSON.stringify({ email: config.email, password: config.password })
-    });
-    const body = await readJson(response);
-    if (!response.ok || !body.token) {
-      throw upstreamError(response.status, body, 'second_site_login_failed');
-    }
-    cachedToken = body.token;
-    return cachedToken;
+  const response = await fetchWithTimeout(state.config, `${state.config.baseUrl}/v1/auth/login`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ email: state.config.email, password: state.config.password })
+  });
+  const body = await readJson(response);
+  if (!response.ok || !body.token) {
+    throw upstreamError(response.status, body, 'second_site_login_failed');
   }
+  state.cachedToken = body.token;
+  return state.cachedToken;
+}
 
-  async function token() {
-    return cachedToken || login();
+async function token(state) {
+  return state.cachedToken || login(state);
+}
+
+async function generate(state, input) {
+  const body = normalizeGenerationRequest(input, state.config);
+  const firstToken = await token(state);
+  const first = await postGeneration(state.config, body, firstToken);
+  if (first.status !== 401) {
+    return handleGenerationResponse(first);
   }
+  const freshToken = await login(state);
+  const second = await postGeneration(state.config, body, freshToken);
+  return handleGenerationResponse(second);
+}
 
-  async function generate(input) {
-    const body = normalizeGenerationRequest(input, config);
-    const firstToken = await token();
-    const first = await postGeneration(body, firstToken);
-    if (first.status !== 401) {
-      return handleGenerationResponse(first);
-    }
-
-    const freshToken = await login();
-    const second = await postGeneration(body, freshToken);
-    return handleGenerationResponse(second);
-  }
-
-  async function postGeneration(body, bearerToken) {
-    const response = await fetchWithTimeout(config, `${config.baseUrl}/v1/images/generations`, {
-      method: 'POST',
-      headers: {
-        ...jsonHeaders(),
-        authorization: `Bearer ${bearerToken}`
-      },
-      body: JSON.stringify(body)
-    });
-    return { response, status: response.status, body: await readJson(response) };
-  }
-
-  return { generate, login };
+async function postGeneration(config, body, bearerToken) {
+  const response = await fetchWithTimeout(config, `${config.baseUrl}/v1/images/generations`, {
+    method: 'POST',
+    headers: {
+      ...jsonHeaders(),
+      authorization: `Bearer ${bearerToken}`
+    },
+    body: JSON.stringify(body)
+  });
+  return { response, status: response.status, body: await readJson(response) };
 }
 
 function readConfig(options) {
@@ -90,20 +88,6 @@ function readConfig(options) {
     paymentMode: options.paymentMode ?? process.env.SECOND_SITE_PAYMENT_MODE,
     timeoutMs: readTimeoutMs(options.timeoutMs ?? process.env.SECOND_SITE_TIMEOUT_MS, 240000)
   };
-}
-
-export function readSecretOption(envName, filePath) {
-  if (filePath) {
-    try {
-      return readFileSync(filePath, 'utf8').trim();
-    } catch {
-      throw new AdapterError(`Unable to read secret file for ${envName}.`, {
-        status: 500,
-        code: 'invalid_secret_file'
-      });
-    }
-  }
-  return process.env[envName];
 }
 
 function normalizeBaseUrl(rawUrl) {

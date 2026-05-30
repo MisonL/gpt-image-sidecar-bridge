@@ -1,11 +1,13 @@
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-import { AdapterError, createSecondSiteClient, readSecretOption } from './second-site-client.mjs';
+import { AdapterError } from './adapter-error.mjs';
 import { redactSensitiveDetails } from './redact-sensitive-details.mjs';
+import { readSecretOption } from './secrets.mjs';
+import { createUpstreamClient } from './upstream-client.mjs';
 
 export function createApp(options = {}) {
-  const client = options.client || createSecondSiteClient(options);
+  const client = options.client || createUpstreamClient(options);
   const apiKey = readAdapterApiKey(options);
 
   async function handle(request) {
@@ -24,7 +26,7 @@ export function createApp(options = {}) {
         return requireAuth(request, apiKey) || (await generateResponse(request, client));
       }
       if (url.pathname === '/v1/images/edits' && request.method === 'POST') {
-        return requireAuth(request, apiKey) || unsupportedImageEndpoint('Image edits are not supported by this bridge.');
+        return requireAuth(request, apiKey) || (await editResponse(request, client));
       }
       if (url.pathname === '/v1/images/variations' && request.method === 'POST') {
         return requireAuth(request, apiKey) || unsupportedImageEndpoint('Image variations are not supported by this bridge.');
@@ -87,18 +89,33 @@ async function generateResponse(request, client) {
   return jsonResponse(result);
 }
 
+async function editResponse(request, client) {
+  if (typeof client.edit !== 'function') {
+    return unsupportedImageEndpoint('Image edits are not supported by the configured upstream.');
+  }
+  const form = await readRequestFormData(request);
+  const streamRequested = form.get('stream') === 'true';
+  if (streamRequested) form.set('stream', 'false');
+  const result = await client.edit(form);
+  assertGenerationResult(result);
+  if (streamRequested) {
+    return imageStreamResponse(result);
+  }
+  return jsonResponse(result);
+}
+
 function assertGenerationResult(result) {
   if (!Array.isArray(result?.data) || result.data.length === 0) {
-    throw new AdapterError('Second site generation response did not include image data.', {
+    throw new AdapterError('Upstream image response did not include image data.', {
       status: 502,
-      code: 'invalid_second_site_generation_response'
+      code: 'invalid_upstream_image_response'
     });
   }
   for (const [index, item] of result.data.entries()) {
     if (typeof item?.b64_json !== 'string' || !item.b64_json) {
-      throw new AdapterError(`Second site generation response image ${index} is missing b64_json.`, {
+      throw new AdapterError(`Upstream image response image ${index} is missing b64_json.`, {
         status: 502,
-        code: 'invalid_second_site_generation_response'
+        code: 'invalid_upstream_image_response'
       });
     }
   }
@@ -143,7 +160,7 @@ function modelsResponse() {
         id: 'gpt-image-2',
         object: 'model',
         created: 0,
-        owned_by: 'second-site'
+        owned_by: 'gpt-image-bridge'
       }
     ]
   });
@@ -171,6 +188,17 @@ async function readRequestJson(request) {
     throw new AdapterError('Request body must be valid JSON.', {
       status: 400,
       code: 'invalid_json'
+    });
+  }
+}
+
+async function readRequestFormData(request) {
+  try {
+    return await request.formData();
+  } catch {
+    throw new AdapterError('Request body must be multipart/form-data.', {
+      status: 400,
+      code: 'invalid_multipart_form'
     });
   }
 }
