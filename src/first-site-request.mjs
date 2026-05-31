@@ -83,11 +83,33 @@ function readGenerationIds(input, count) {
 }
 
 function readExplicitGenerationIds(input) {
-  const generationId = readRequestString(input, 'generationId') || readRequestString(input, 'generation_id');
+  const generationId = readOptionalGenerationId(input, 'generationId') || readOptionalGenerationId(input, 'generation_id');
   if (generationId) return [generationId];
-  if (!Array.isArray(input?.generationIds)) return [];
-  const ids = input.generationIds.filter((item) => typeof item === 'string' && item);
-  return ids.length === input.generationIds.length ? ids : [];
+  if (!Object.hasOwn(input, 'generationIds')) return [];
+  if (!Array.isArray(input.generationIds)) {
+    throw new AdapterError('generationIds must be an array of non-empty strings.', {
+      status: 400,
+      code: 'invalid_generation_ids'
+    });
+  }
+  if (input.generationIds.some((item) => typeof item !== 'string' || !item)) {
+    throw new AdapterError('generationIds must be an array of non-empty strings.', {
+      status: 400,
+      code: 'invalid_generation_ids'
+    });
+  }
+  return input.generationIds;
+}
+
+function readOptionalGenerationId(input, field) {
+  if (!Object.hasOwn(input, field) || input[field] === undefined || input[field] === null) return '';
+  if (typeof input[field] !== 'string' || !input[field]) {
+    throw new AdapterError(`${field} must be a non-empty string.`, {
+      status: 400,
+      code: 'invalid_generation_id'
+    });
+  }
+  return input[field];
 }
 
 function createGenerationId() {

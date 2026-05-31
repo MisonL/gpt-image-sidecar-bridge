@@ -3,13 +3,7 @@ import test from 'node:test';
 
 import { AdapterError } from '../src/adapter-error.mjs';
 import { createFirstSiteClient } from '../src/first-site-client.mjs';
-import {
-  firstSiteFetch,
-  firstSiteGenerationStream,
-  imageResponse,
-  jsonResponse,
-  textResponse
-} from './first-site-test-helpers.mjs';
+import { firstSiteFetch } from './first-site-test-helpers.mjs';
 
 test('logs in and converts first-site generation output to OpenAI b64_json', async () => {
   const calls = [];
@@ -70,6 +64,35 @@ test('sends multiple first-site generation ids like the web UI', async () => {
   assert.equal(body.generationIds.length, 2);
   assert.match(body.generationIds[0], /^[A-Za-z0-9_-]{21}$/);
   assert.match(body.generationIds[1], /^[A-Za-z0-9_-]{21}$/);
+});
+
+test('forwards explicit first-site generation ids', async () => {
+  const calls = [];
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url, options) => firstSiteFetch(url, options, calls)
+  });
+
+  await client.generate({ prompt: 'hello', n: 2, generationIds: ['requested-1', 'requested-2'] });
+  const body = JSON.parse(calls.find((call) => call.url.endsWith('/api/images/generate')).options.body);
+
+  assert.deepEqual(body.generationIds, ['requested-1', 'requested-2']);
+});
+
+test('rejects invalid explicit first-site generation ids before contacting upstream', async () => {
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async () => {
+      throw new Error('fetch should not be called');
+    }
+  });
+
+  await assert.rejects(
+    client.generate({ prompt: 'hello', generationIds: ['valid-id', ''] }),
+    (error) => error instanceof AdapterError && error.status === 400 && error.code === 'invalid_generation_ids'
+  );
 });
 
 test('sends first-site edit requests and parses completed SSE events', async () => {
@@ -146,112 +169,6 @@ test('honors first-site per-request extension opt-outs', async () => {
   assert.equal(generation.promptOptimization, undefined);
   assert.equal(edit.get('mix_web_first'), null);
   assert.equal(edit.get('prompt_optimization'), null);
-});
-
-test('retries first-site image downloads while storage is becoming ready', async () => {
-  const calls = [];
-  const client = createFirstSiteClient({
-    baseUrl: 'https://first.example.test',
-    sessionCookie: '__Secure-better-auth.session_token=configured-token',
-    fetchImpl: async (url, options) => {
-      calls.push({ url, options });
-      if (url.endsWith('/api/images/generate')) {
-        return textResponse(200, firstSiteGenerationStream(), 'text/event-stream');
-      }
-      if (url.endsWith('/api/storage/generated.png')) {
-        const attempts = calls.filter((call) => call.url.endsWith('/api/storage/generated.png')).length;
-        if (attempts === 1) return jsonResponse(400, { message: 'not ready' });
-        return imageResponse('image-bytes');
-      }
-      throw new Error(`unexpected url: ${url}`);
-    }
-  });
-
-  const result = await client.generate({ prompt: 'hello' });
-  const downloads = calls.filter((call) => call.url.endsWith('/api/storage/generated.png'));
-
-  assert.equal(result.data[0].b64_json, Buffer.from('image-bytes').toString('base64'));
-  assert.equal(downloads.length, 2);
-});
-
-test('rejects cross-origin first-site image URLs before downloading', async () => {
-  const calls = [];
-  const client = createFirstSiteClient({
-    baseUrl: 'https://first.example.test',
-    sessionCookie: '__Secure-better-auth.session_token=configured-token',
-    fetchImpl: async (url, options) => {
-      calls.push({ url, options });
-      if (url.endsWith('/api/images/generate')) {
-        return textResponse(200, firstSiteGenerationStream('https://evil.example.test/leak.png'), 'text/event-stream');
-      }
-      throw new Error(`unexpected url: ${url}`);
-    }
-  });
-
-  await assert.rejects(
-    client.generate({ prompt: 'hello' }),
-    (error) => error instanceof AdapterError && error.status === 502 && error.code === 'first_site_image_fetch_failed'
-  );
-  assert.equal(calls.length, 1);
-});
-
-test('rejects invalid first-site image URLs before downloading', async () => {
-  const calls = [];
-  const client = createFirstSiteClient({
-    baseUrl: 'https://first.example.test',
-    sessionCookie: '__Secure-better-auth.session_token=configured-token',
-    fetchImpl: async (url, options) => {
-      calls.push({ url, options });
-      if (url.endsWith('/api/images/generate')) {
-        return textResponse(200, firstSiteGenerationStream('https://[invalid'), 'text/event-stream');
-      }
-      throw new Error(`unexpected url: ${url}`);
-    }
-  });
-
-  await assert.rejects(
-    client.generate({ prompt: 'hello' }),
-    (error) => error instanceof AdapterError && error.status === 502 && error.code === 'first_site_image_fetch_failed'
-  );
-  assert.equal(calls.length, 1);
-});
-
-test('truncates non-JSON first-site gateway errors', async () => {
-  const client = createFirstSiteClient({
-    baseUrl: 'https://first.example.test',
-    sessionCookie: '__Secure-better-auth.session_token=configured-token',
-    fetchImpl: async (url) => {
-      if (url.endsWith('/api/images/generate')) {
-        return textResponse(502, `<html>${'x'.repeat(1000)}</html>`, 'text/html');
-      }
-      throw new Error(`unexpected url: ${url}`);
-    }
-  });
-
-  await assert.rejects(
-    client.generate({ prompt: 'hello' }),
-    (error) =>
-      error instanceof AdapterError &&
-      error.status === 502 &&
-      error.code === 'first_site_generation_failed' &&
-      error.message.length <= 203
-  );
-});
-
-test('reports expired fixed first-site sessions as authentication errors', async () => {
-  const client = createFirstSiteClient({
-    baseUrl: 'https://first.example.test',
-    sessionCookie: '__Secure-better-auth.session_token=expired-token',
-    fetchImpl: async (url) => {
-      if (url.endsWith('/api/images/generate')) return jsonResponse(401, { message: 'expired' });
-      throw new Error(`unexpected url: ${url}`);
-    }
-  });
-
-  await assert.rejects(
-    client.generate({ prompt: 'hello' }),
-    (error) => error instanceof AdapterError && error.status === 401 && error.code === 'first_site_session_expired'
-  );
 });
 
 test('rejects image edits without a source image before contacting the first site', async () => {

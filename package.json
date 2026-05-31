@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "sh scripts/check.sh",
     "start": "node src/server.mjs",
     "test": "node --test"
   },

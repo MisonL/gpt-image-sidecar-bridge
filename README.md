@@ -23,6 +23,8 @@ OpenAI `/v1/images/generations` 和 `/v1/images/edits` 形态调用。
 默认 provider 是 `second-site`，用于保持已有部署行为。要使用第一站，设置
 `GPT_IMAGE_BRIDGE_PROVIDER=first-site`。
 
+调用方必须使用 `response_format=b64_json`。图片生成数量 `n` 支持 1 到 5。
+
 本服务收到 `stream: true` 时，会向上游发起最终图请求，再把最终图片包装为
 `text/event-stream` 的 `image_generation.completed` 事件返回。第一站编辑图接口本身有
 SSE 预览事件，但当前桥接层只输出最终图兼容事件。
@@ -31,7 +33,9 @@ SSE 预览事件，但当前桥接层只输出最终图兼容事件。
 
 - 文生图：`POST /api/images/generate`，`Accept: text/event-stream`，`stream: true`
 - 图生图：`POST /api/images/edit`，`Accept: text/event-stream`，`stream: true`
-- 关键字段：`prompt`、`size` 或 `displaySize`、`count`、`generationId` 或 `generationIds`、`quality`、`moderation`、`output_format`、`background`、`thinking`、`mix_web_first`
+- 关键字段：`prompt`、`size` 或 `displaySize`、`count`、`generationId` 或 `generationIds`、
+  `quality`、`moderation`、`output_format`、`output_compression`、`background`、`thinking`、
+  `mix_web_first`、`prompt_optimization`
 
 ## 快速部署
 
@@ -103,9 +107,12 @@ FIRST_SITE_SESSION_COOKIE_FILE="$HOME/.config/gpt-image-bridge/secrets/first-sit
 ## 验证
 
 ```bash
-npm test
+npm run check
 ./scripts/check-standalone-deployment.sh
 ```
+
+`npm run check` 会执行 Node 语法检查、shell 脚本语法检查、`git diff --check` 和完整测试套件。
+如果只需要跑单元测试，可以使用 `npm test`。
 
 如果要同时验证某个容器化下游的网络边界，显式传容器名：
 
@@ -169,8 +176,20 @@ curl -sS http://127.0.0.1:3099/v1/images/edits \
   -F "prompt=make the subject look like a clean product render" \
   -F "image=@/path/to/source.png;type=image/png" \
   -F "size=1024x1024" \
+  -F "mix_web_first=true" \
+  -F "prompt_optimization=false" \
   -F "response_format=b64_json"
 ```
+
+第一站 provider 支持透传 WebUI 兼容扩展字段：
+
+| 字段 | 适用接口 | 说明 |
+| --- | --- | --- |
+| `generationId` / `generation_id` | 文生图、图生图 | 单张图的请求 ID；必须是非空字符串。 |
+| `generationIds` / `generationIds[]` / `generation_ids` | 文生图、图生图 | 多张图的请求 ID；文生图传 JSON 数组，图生图可传 JSON 数组或多个同名字段。 |
+| `mix_web_first` / `mixWebFirst` | 文生图、图生图 | `true` 或 `false`，覆盖 provider 默认值。 |
+| `prompt_optimization` / `promptOptimization` | 文生图、图生图 | `true` 或 `false`，覆盖 provider 默认值。 |
+| `output_compression` | 文生图、图生图 | 非 PNG 输出时透传压缩参数。 |
 
 ## 下游接入
 
