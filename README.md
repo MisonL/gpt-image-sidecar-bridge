@@ -54,13 +54,23 @@ export FIRST_SITE_PASSWORD="your-password"
 ./scripts/deploy-docker.sh
 ```
 
+也可以用第一站 session cookie 或 session token 部署；这种方式不能自动刷新过期会话：
+
+```bash
+cd "/path/to/gpt-image-sidecar-bridge"
+export GPT_IMAGE_BRIDGE_PROVIDER="first-site"
+export ADAPTER_API_KEY="<adapter-api-key>"
+export FIRST_SITE_SESSION_COOKIE_FILE="/path/to/first-site-session-cookie"
+./scripts/deploy-docker.sh
+```
+
 部署脚本会：
 
 - 构建镜像 `gpt-image-bridge:local`。
 - 重建容器 `gpt-image-bridge`。
 - 监听宿主机 `http://127.0.0.1:3099/v1`。
 - 把运行凭据写到 `$HOME/.config/gpt-image-bridge/secrets/`，再以只读文件挂载到容器。
-- 不把上游站点账号密码写入源码、镜像或 Docker 环境变量。
+- 不把上游站点账号密码、session cookie 或 token 写入源码、镜像或 Docker 环境变量。
 
 第二站重新部署时可以直接复用 secret 文件：
 
@@ -78,6 +88,15 @@ GPT_IMAGE_BRIDGE_PROVIDER="first-site" \
 ADAPTER_API_KEY="$(cat "$HOME/.config/gpt-image-bridge/secrets/adapter-api-key")" \
 FIRST_SITE_EMAIL="$(cat "$HOME/.config/gpt-image-bridge/secrets/first-site-email")" \
 FIRST_SITE_PASSWORD="$(cat "$HOME/.config/gpt-image-bridge/secrets/first-site-password")" \
+./scripts/deploy-docker.sh
+```
+
+若第一站使用 session cookie 方式，可以复用文件：
+
+```bash
+GPT_IMAGE_BRIDGE_PROVIDER="first-site" \
+ADAPTER_API_KEY="$(cat "$HOME/.config/gpt-image-bridge/secrets/adapter-api-key")" \
+FIRST_SITE_SESSION_COOKIE_FILE="$HOME/.config/gpt-image-bridge/secrets/first-site-session-cookie" \
 ./scripts/deploy-docker.sh
 ```
 
