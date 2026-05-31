@@ -98,6 +98,19 @@ test('rejects invalid OpenAI image edit fields before contacting upstream', asyn
   await assertEditError(badFormat, 'unsupported_response_format');
 });
 
+test('rejects oversized OpenAI image edit uploads before contacting upstream', async () => {
+  const tooLargeImage = editForm();
+  tooLargeImage.set('image', imageBlob(0x1900001), 'large.png');
+  await assertEditError(tooLargeImage, 'invalid_image_too_large', 413);
+
+  const tooLargeTotal = new FormData();
+  tooLargeTotal.append('prompt', 'edit');
+  for (let index = 0; index < 4; index += 1) {
+    tooLargeTotal.append('image[]', imageBlob(0x1400000), `source-${index}.png`);
+  }
+  await assertEditError(tooLargeTotal, 'invalid_image_upload_too_large', 413);
+});
+
 function assertAdapterError(input, code) {
   assert.throws(
     () => normalizeGenerationRequest(input),
@@ -112,9 +125,13 @@ function editForm() {
   return form;
 }
 
-async function assertEditError(input, code) {
+function imageBlob(size) {
+  return new Blob([new ArrayBuffer(size)], { type: 'image/png' });
+}
+
+async function assertEditError(input, code, status = 400) {
   await assert.rejects(
     normalizeEditRequest(input),
-    (error) => error instanceof AdapterError && error.status === 400 && error.code === code
+    (error) => error instanceof AdapterError && error.status === status && error.code === code
   );
 }

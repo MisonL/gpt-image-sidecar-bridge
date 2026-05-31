@@ -1,4 +1,5 @@
 import { AdapterError } from './adapter-error.mjs';
+import { validateImageUploadSize, validateTotalImageUploadSize } from './openai-image-upload-limits.mjs';
 
 const VALID_OUTPUT_FORMATS = new Set(['png', 'jpeg', 'webp']);
 const VALID_QUALITY_VALUES = new Set(['auto', 'low', 'medium', 'high']);
@@ -40,6 +41,7 @@ export async function normalizeEditRequest(input, defaults = {}) {
   const prompt = readRequiredFormString(form, 'prompt');
   const images = readImageFiles(form);
   const mask = readOptionalFile(form, 'mask');
+  validateTotalImageUploadSize(images, mask);
   const responseFormat = readResponseFormat(formFieldsToObject(form));
   if (responseFormat !== 'b64_json') {
     throw new AdapterError('Only b64_json response_format is supported.', {
@@ -151,6 +153,7 @@ function validateImageFile(file, field) {
   if (file.size <= 0) {
     throw new AdapterError(`${field} file must not be empty.`, { status: 400, code: `invalid_${field}` });
   }
+  validateImageUploadSize(file, field);
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
     throw new AdapterError(`${field} must be PNG, JPEG, or WebP.`, { status: 400, code: `invalid_${field}` });
   }
