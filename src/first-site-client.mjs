@@ -95,14 +95,23 @@ async function withSessionRetry(state, args) {
   if (!isAuthenticationFailure(first.status)) {
     return args.handle(first, firstCookie);
   }
+  if (!canRefreshSession(state.config)) {
+    throw new AdapterError('First site session expired.', { status: 401, code: 'first_site_session_expired' });
+  }
   const freshCookie = await login(state);
   const second = await args.request(freshCookie);
   return args.handle(second, freshCookie);
 }
 
+function canRefreshSession(config) {
+  return Boolean(config.email && config.password);
+}
+
 function readConfig(options) {
+  const baseUrl = normalizeBaseUrl(options.baseUrl || process.env.FIRST_SITE_BASE_URL || DEFAULT_BASE_URL);
   return {
-    baseUrl: normalizeBaseUrl(options.baseUrl || process.env.FIRST_SITE_BASE_URL || DEFAULT_BASE_URL),
+    baseUrl,
+    baseOrigin: new URL(baseUrl).origin,
     email: options.email ?? readSecretOption('FIRST_SITE_EMAIL', process.env.FIRST_SITE_EMAIL_FILE),
     password: options.password ?? readSecretOption('FIRST_SITE_PASSWORD', process.env.FIRST_SITE_PASSWORD_FILE),
     sessionCookie: readConfiguredCookie(options),

@@ -67,6 +67,11 @@ test('normalizes OpenAI image edit multipart requests', async () => {
   form.append('n', '2');
   form.append('size', '1024x1024');
   form.append('response_format', 'b64_json');
+  form.append('output_format', 'jpeg');
+  form.append('output_compression', '80');
+  form.append('mixWebFirst', 'true');
+  form.append('prompt_optimization', '1');
+  form.append('generationIds', '["edit-1","edit-2"]');
 
   const body = await normalizeEditRequest(form, { model: 'gpt-image-2', outputFormat: 'png' });
 
@@ -76,6 +81,20 @@ test('normalizes OpenAI image edit multipart requests', async () => {
   assert.equal(body.n, 2);
   assert.equal(body.size, '1024x1024');
   assert.equal(body.response_format, 'b64_json');
+  assert.equal(body.output_format, 'jpeg');
+  assert.equal(body.output_compression, '80');
+  assert.equal(body.mix_web_first, true);
+  assert.equal(body.prompt_optimization, true);
+  assert.deepEqual(body.generationIds, ['edit-1', 'edit-2']);
+});
+
+test('treats non-JSON edit generationIds values as plain ids', async () => {
+  const form = editForm();
+  form.append('generationIds', '[plain-id');
+
+  const body = await normalizeEditRequest(form);
+
+  assert.deepEqual(body.generationIds, ['[plain-id']);
 });
 
 test('rejects invalid OpenAI image edit fields before contacting upstream', async () => {
@@ -96,6 +115,10 @@ test('rejects invalid OpenAI image edit fields before contacting upstream', asyn
   const badFormat = editForm();
   badFormat.set('response_format', 'url');
   await assertEditError(badFormat, 'unsupported_response_format');
+
+  const badBoolean = editForm();
+  badBoolean.set('mix_web_first', 'sometimes');
+  await assertEditError(badBoolean, 'invalid_mix_web_first');
 });
 
 test('rejects oversized OpenAI image edit uploads before contacting upstream', async () => {

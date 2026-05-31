@@ -3,6 +3,13 @@ import test from 'node:test';
 
 import { AdapterError } from '../src/adapter-error.mjs';
 import { createFirstSiteClient } from '../src/first-site-client.mjs';
+import {
+  firstSiteFetch,
+  firstSiteGenerationStream,
+  imageResponse,
+  jsonResponse,
+  textResponse
+} from './first-site-test-helpers.mjs';
 
 test('logs in and converts first-site generation output to OpenAI b64_json', async () => {
   const calls = [];
@@ -88,6 +95,59 @@ test('sends first-site edit requests and parses completed SSE events', async () 
   assert.equal(edit.options.body.getAll('image').length, 1);
 });
 
+test('forwards first-site edit extension fields', async () => {
+  const calls = [];
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    mixWebFirst: false,
+    promptOptimization: false,
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url, options) => firstSiteFetch(url, options, calls)
+  });
+  const form = new FormData();
+  form.append('prompt', 'edit this');
+  form.append('image', new Blob(['source'], { type: 'image/png' }), 'source.png');
+  form.append('output_format', 'jpeg');
+  form.append('output_compression', '80');
+  form.append('mix_web_first', 'true');
+  form.append('prompt_optimization', 'true');
+  form.append('generationId', 'edit-generation-1');
+
+  await client.edit(form);
+  const body = calls.find((call) => call.url.endsWith('/api/images/edit')).options.body;
+
+  assert.equal(body.get('generationId'), 'edit-generation-1');
+  assert.equal(body.get('output_compression'), '80');
+  assert.equal(body.get('mix_web_first'), 'true');
+  assert.equal(body.get('prompt_optimization'), 'true');
+});
+
+test('honors first-site per-request extension opt-outs', async () => {
+  const calls = [];
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    mixWebFirst: true,
+    promptOptimization: true,
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url, options) => firstSiteFetch(url, options, calls)
+  });
+  await client.generate({ prompt: 'hello', mix_web_first: false, prompt_optimization: false });
+  const generation = JSON.parse(calls.find((call) => call.url.endsWith('/api/images/generate')).options.body);
+
+  const form = new FormData();
+  form.append('prompt', 'edit this');
+  form.append('image', new Blob(['source'], { type: 'image/png' }), 'source.png');
+  form.append('mix_web_first', 'false');
+  form.append('prompt_optimization', 'false');
+  await client.edit(form);
+  const edit = calls.find((call) => call.url.endsWith('/api/images/edit')).options.body;
+
+  assert.equal(generation.mix_web_first, undefined);
+  assert.equal(generation.promptOptimization, undefined);
+  assert.equal(edit.get('mix_web_first'), null);
+  assert.equal(edit.get('prompt_optimization'), null);
+});
+
 test('retries first-site image downloads while storage is becoming ready', async () => {
   const calls = [];
   const client = createFirstSiteClient({
@@ -112,6 +172,86 @@ test('retries first-site image downloads while storage is becoming ready', async
 
   assert.equal(result.data[0].b64_json, Buffer.from('image-bytes').toString('base64'));
   assert.equal(downloads.length, 2);
+});
+
+test('rejects cross-origin first-site image URLs before downloading', async () => {
+  const calls = [];
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/api/images/generate')) {
+        return textResponse(200, firstSiteGenerationStream('https://evil.example.test/leak.png'), 'text/event-stream');
+      }
+      throw new Error(`unexpected url: ${url}`);
+    }
+  });
+
+  await assert.rejects(
+    client.generate({ prompt: 'hello' }),
+    (error) => error instanceof AdapterError && error.status === 502 && error.code === 'first_site_image_fetch_failed'
+  );
+  assert.equal(calls.length, 1);
+});
+
+test('rejects invalid first-site image URLs before downloading', async () => {
+  const calls = [];
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/api/images/generate')) {
+        return textResponse(200, firstSiteGenerationStream('https://[invalid'), 'text/event-stream');
+      }
+      throw new Error(`unexpected url: ${url}`);
+    }
+  });
+
+  await assert.rejects(
+    client.generate({ prompt: 'hello' }),
+    (error) => error instanceof AdapterError && error.status === 502 && error.code === 'first_site_image_fetch_failed'
+  );
+  assert.equal(calls.length, 1);
+});
+
+test('truncates non-JSON first-site gateway errors', async () => {
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url) => {
+      if (url.endsWith('/api/images/generate')) {
+        return textResponse(502, `<html>${'x'.repeat(1000)}</html>`, 'text/html');
+      }
+      throw new Error(`unexpected url: ${url}`);
+    }
+  });
+
+  await assert.rejects(
+    client.generate({ prompt: 'hello' }),
+    (error) =>
+      error instanceof AdapterError &&
+      error.status === 502 &&
+      error.code === 'first_site_generation_failed' &&
+      error.message.length <= 203
+  );
+});
+
+test('reports expired fixed first-site sessions as authentication errors', async () => {
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=expired-token',
+    fetchImpl: async (url) => {
+      if (url.endsWith('/api/images/generate')) return jsonResponse(401, { message: 'expired' });
+      throw new Error(`unexpected url: ${url}`);
+    }
+  });
+
+  await assert.rejects(
+    client.generate({ prompt: 'hello' }),
+    (error) => error instanceof AdapterError && error.status === 401 && error.code === 'first_site_session_expired'
+  );
 });
 
 test('rejects image edits without a source image before contacting the first site', async () => {
@@ -152,73 +292,3 @@ test('rejects unsafe first-site base URLs during client creation', () => {
     (error) => error instanceof AdapterError && error.status === 500 && error.code === 'invalid_first_site_base_url'
   );
 });
-
-function firstSiteFetch(url, options, calls) {
-  calls.push({ url, options });
-  if (url.endsWith('/api/auth/sign-in/email')) {
-    return jsonResponse(200, { token: 'session-token' }, {
-      'set-cookie': '__Secure-better-auth.session_token=session-token; Path=/; HttpOnly; Secure'
-    });
-  }
-  if (url.endsWith('/api/images/generate')) {
-    return textResponse(200, firstSiteGenerationStream(), 'text/event-stream');
-  }
-  if (url.endsWith('/api/images/edit')) {
-    return textResponse(200, firstSiteEditStream(), 'text/event-stream');
-  }
-  if (url.endsWith('/api/storage/generated.png')) {
-    return imageResponse('image-bytes');
-  }
-  throw new Error(`unexpected url: ${url}`);
-}
-
-function firstSiteImageBody() {
-  return {
-    generationId: 'generation-1',
-    imageUrl: '/api/storage/generated.png',
-    imageOutputs: [
-      {
-        generationId: 'generation-1',
-        imageUrl: '/api/storage/generated.png',
-        revisedPrompt: 'revised prompt'
-      }
-    ]
-  };
-}
-
-function firstSiteEditStream() {
-  return [
-    'data: {"type":"partial_image","b64_json":"preview"}\n\n',
-    `data: ${JSON.stringify({ type: 'completed', ...firstSiteImageBody() })}\n\n`,
-    'data: {"type":"done"}\n\n'
-  ].join('');
-}
-
-function firstSiteGenerationStream() {
-  return [
-    'data: {"type":"partial_image","b64_json":"preview"}\n\n',
-    `data: ${JSON.stringify({ type: 'completed', ...firstSiteImageBody() })}\n\n`,
-    'data: [DONE]\n\n'
-  ].join('');
-}
-
-function jsonResponse(status, body, headers = {}) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', ...headers }
-  });
-}
-
-function textResponse(status, body, contentType) {
-  return new Response(body, {
-    status,
-    headers: { 'content-type': contentType }
-  });
-}
-
-function imageResponse(body) {
-  return new Response(Buffer.from(body), {
-    status: 200,
-    headers: { 'content-type': 'image/png' }
-  });
-}

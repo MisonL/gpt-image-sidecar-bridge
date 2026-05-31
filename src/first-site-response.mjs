@@ -6,6 +6,7 @@ import { redactSensitiveDetails } from './redact-sensitive-details.mjs';
 const IMAGE_FETCH_MAX_ATTEMPTS = 4;
 const IMAGE_FETCH_RETRY_DELAY_MS = 1000;
 const IMAGE_FETCH_RETRY_STATUSES = new Set([400, 404, 409, 425, 429, 500, 502, 503, 504]);
+const RAW_ERROR_MESSAGE_MAX_LENGTH = 200;
 
 export async function postGeneration(config, cookie, body) {
   const response = await fetchWithTimeout(config, `${config.baseUrl}/api/images/generate`, {
@@ -73,7 +74,7 @@ async function outputToOpenAIImage(config, output, cookie) {
 }
 
 async function fetchImageBase64(config, imageUrl, cookie) {
-  const url = new URL(imageUrl, config.baseUrl).toString();
+  const url = resolveImageUrl(config, imageUrl);
   const response = await fetchImageWithRetry(config, url, cookie);
   if (!response.ok) {
     throw upstreamError(response.status, { message: 'First site image download failed.' }, 'first_site_image_fetch_failed');
@@ -83,6 +84,19 @@ async function fetchImageBase64(config, imageUrl, cookie) {
     throw upstreamError(502, { message: 'First site image download returned non-image content.' }, 'first_site_image_fetch_failed');
   }
   return Buffer.from(await response.arrayBuffer()).toString('base64');
+}
+
+function resolveImageUrl(config, imageUrl) {
+  let url;
+  try {
+    url = new URL(imageUrl, config.baseUrl);
+  } catch {
+    throw upstreamError(502, { message: 'First site returned an invalid image URL.' }, 'first_site_image_fetch_failed');
+  }
+  if (url.origin !== config.baseOrigin) {
+    throw upstreamError(502, { message: 'First site image URL must be same-origin.' }, 'first_site_image_fetch_failed');
+  }
+  return url.toString();
 }
 
 async function fetchImageWithRetry(config, url, cookie) {
@@ -218,8 +232,14 @@ function parseJsonText(text) {
   try {
     return JSON.parse(text);
   } catch {
-    return { raw: text };
+    return { raw: truncateRawText(text) };
   }
+}
+
+function truncateRawText(text) {
+  const normalized = String(text).trim();
+  if (normalized.length <= RAW_ERROR_MESSAGE_MAX_LENGTH) return normalized;
+  return `${Array.from(normalized).slice(0, RAW_ERROR_MESSAGE_MAX_LENGTH).join('')}...`;
 }
 
 export function upstreamError(status, body, fallbackCode) {

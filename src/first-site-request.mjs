@@ -35,20 +35,32 @@ export function buildEditBody(input, config) {
   appendEditModel(form, input);
   appendEditFiles(form, input);
   form.append('count', String(input.n));
-  appendFormGenerationIds(form, input.n);
+  appendFormGenerationIds(form, input, input.n);
   form.append('stream', 'true');
   form.append('thinking', input.thinking);
   appendFormOutputCompression(form, input);
-  if (config.mixWebFirst) form.append('mix_web_first', 'true');
-  if (config.promptOptimization) form.append('prompt_optimization', 'true');
+  if (readBooleanOverride(input, 'mix_web_first', config.mixWebFirst)) form.append('mix_web_first', 'true');
+  if (readPromptOptimization(input, config.promptOptimization)) {
+    form.append('prompt_optimization', 'true');
+  }
   return form;
+}
+
+function readPromptOptimization(input, fallback) {
+  if (Object.hasOwn(input, 'promptOptimization')) return input.promptOptimization === true;
+  return readBooleanOverride(input, 'prompt_optimization', fallback);
+}
+
+function readBooleanOverride(input, field, fallback) {
+  if (!Object.hasOwn(input, field)) return fallback;
+  return input[field] === true;
 }
 
 function appendOptionalGenerationFields(body, input, normalized, config) {
   if (shouldAppendModel(normalized.model)) body.model = normalized.model;
   appendGenerationIds(body, input, normalized.n);
-  if (config.mixWebFirst || input.mix_web_first === true) body.mix_web_first = true;
-  if (config.promptOptimization || input.promptOptimization === true || input.prompt_optimization === true) {
+  if (readBooleanOverride(input, 'mix_web_first', config.mixWebFirst)) body.mix_web_first = true;
+  if (readPromptOptimization(input, config.promptOptimization)) {
     body.promptOptimization = true;
   }
   appendOutputCompression(body, input, normalized.output_format);
@@ -93,8 +105,8 @@ function appendOutputCompression(body, input, outputFormat) {
   body.output_compression = value;
 }
 
-function appendFormGenerationIds(form, count) {
-  const ids = Array.from({ length: count }, () => createGenerationId());
+function appendFormGenerationIds(form, input, count) {
+  const ids = readGenerationIds(input, count);
   if (count === 1) {
     form.append('generationId', ids[0]);
     return;

@@ -1,4 +1,5 @@
 import { AdapterError } from './adapter-error.mjs';
+import { readEditOptions } from './openai-image-edit-options.mjs';
 import { validateImageUploadSize, validateTotalImageUploadSize } from './openai-image-upload-limits.mjs';
 
 const VALID_OUTPUT_FORMATS = new Set(['png', 'jpeg', 'webp']);
@@ -58,6 +59,7 @@ export async function normalizeEditRequest(input, defaults = {}) {
     n,
     response_format: responseFormat,
     output_format: outputFormat,
+    ...readEditOptions(form),
     size: readEditSize(form),
     model: readFormString(form, 'model') || readDefaultString(defaults.model, 'gpt-image-2'),
     quality: normalizeEnum(readFormString(form, 'quality') || defaults.quality || 'auto', VALID_QUALITY_VALUES, {
