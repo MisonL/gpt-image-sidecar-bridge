@@ -1,3 +1,5 @@
+import { webcrypto as crypto } from 'node:crypto';
+
 import { AdapterError } from './adapter-error.mjs';
 import { VALID_BACKGROUND_VALUES, VALID_QUALITY_VALUES } from './first-site-config.mjs';
 

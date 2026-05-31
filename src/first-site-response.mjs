@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import { AdapterError } from './adapter-error.mjs';
 import { redactSensitiveDetails } from './redact-sensitive-details.mjs';
 
