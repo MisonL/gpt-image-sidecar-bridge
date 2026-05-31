@@ -115,11 +115,9 @@ try {
 
 docker build -t "$IMAGE" "$PROJECT_DIR"
 
-for name in "$CONTAINER" gpt-image-sidecar-bridge; do
-  if docker ps -a --format '{{.Names}}' | grep -Fx "$name" >/dev/null; then
-    docker rm -f "$name" >/dev/null
-  fi
-done
+if docker ps -a --format '{{.Names}}' | grep -Fx "$CONTAINER" >/dev/null; then
+  docker rm -f "$CONTAINER" >/dev/null
+fi
 
 mkdir -p "$SECRET_DIR"
 chmod 700 "$CONFIG_DIR" "$SECRET_DIR"

@@ -13,6 +13,7 @@ test('docker deploy script runs a standalone bridge service', async () => {
   assert.match(script, /-p "127\.0\.0\.1:\$EFFECTIVE_HOST_PORT:\$EFFECTIVE_CONTAINER_PORT"/);
   assert.doesNotMatch(script, /GPT_IMAGE_BRIDGE_NETWORK_CONTAINER/);
   assert.doesNotMatch(script, /--network container:/);
+  assert.doesNotMatch(script, /gpt-image-sidecar-bridge/);
 });
 
 test('docker deploy script keeps credentials out of image and env values', async () => {
