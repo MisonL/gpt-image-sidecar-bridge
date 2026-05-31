@@ -27,6 +27,12 @@ OpenAI `/v1/images/generations` 和 `/v1/images/edits` 形态调用。
 `text/event-stream` 的 `image_generation.completed` 事件返回。第一站编辑图接口本身有
 SSE 预览事件，但当前桥接层只输出最终图兼容事件。
 
+第一站的适配口径来自创作页 WebUI 的真实前端调用：
+
+- 文生图：`POST /api/images/generate`，`Accept: text/event-stream`，`stream: true`
+- 图生图：`POST /api/images/edit`，`Accept: text/event-stream`，`stream: true`
+- 关键字段：`prompt`、`size` 或 `displaySize`、`count`、`generationId` 或 `generationIds`、`quality`、`moderation`、`output_format`、`background`、`thinking`、`mix_web_first`
+
 ## 快速部署
 
 ```bash

@@ -34,9 +34,35 @@ test('logs in and converts first-site generation output to OpenAI b64_json', asy
   assert.equal(calls[0].options.headers.origin, 'https://first.example.test');
   assert.equal(JSON.parse(calls[0].options.body).rememberMe, true);
   assert.equal(generation.options.headers.cookie, '__Secure-better-auth.session_token=session-token');
-  assert.equal(JSON.parse(generation.options.body).promptOptimization, undefined);
-  assert.equal(JSON.parse(generation.options.body).mix_web_first, true);
+  assert.equal(generation.options.headers.accept, 'text/event-stream');
+  const generationBody = JSON.parse(generation.options.body);
+  assert.equal(generationBody.stream, true);
+  assert.match(generationBody.generationId, /^[A-Za-z0-9_-]{21}$/);
+  assert.equal(generationBody.promptOptimization, undefined);
+  assert.equal(generationBody.mix_web_first, true);
   assert.equal(image.options.headers.cookie, '__Secure-better-auth.session_token=session-token');
+});
+
+test('sends multiple first-site generation ids like the web UI', async () => {
+  const calls = [];
+  const client = createFirstSiteClient({
+    baseUrl: 'https://first.example.test',
+    sessionCookie: '__Secure-better-auth.session_token=configured-token',
+    fetchImpl: async (url, options) => firstSiteFetch(url, options, calls)
+  });
+
+  await client.generate({
+    prompt: 'hello',
+    n: 2,
+    size: '1024x1024',
+    response_format: 'b64_json'
+  });
+  const body = JSON.parse(calls.find((call) => call.url.endsWith('/api/images/generate')).options.body);
+
+  assert.equal(body.generationId, undefined);
+  assert.equal(body.generationIds.length, 2);
+  assert.match(body.generationIds[0], /^[A-Za-z0-9_-]{21}$/);
+  assert.match(body.generationIds[1], /^[A-Za-z0-9_-]{21}$/);
 });
 
 test('sends first-site edit requests and parses completed SSE events', async () => {
@@ -58,6 +84,7 @@ test('sends first-site edit requests and parses completed SSE events', async () 
   assert.equal(edit.options.body.get('prompt'), 'edit this');
   assert.equal(edit.options.body.get('displaySize'), '1024x1024');
   assert.equal(edit.options.body.get('stream'), 'true');
+  assert.match(edit.options.body.get('generationId'), /^[A-Za-z0-9_-]{21}$/);
   assert.equal(edit.options.body.getAll('image').length, 1);
 });
 
@@ -69,7 +96,7 @@ test('retries first-site image downloads while storage is becoming ready', async
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
       if (url.endsWith('/api/images/generate')) {
-        return jsonResponse(200, firstSiteImageBody());
+        return textResponse(200, firstSiteGenerationStream(), 'text/event-stream');
       }
       if (url.endsWith('/api/storage/generated.png')) {
         const attempts = calls.filter((call) => call.url.endsWith('/api/storage/generated.png')).length;
@@ -134,7 +161,7 @@ function firstSiteFetch(url, options, calls) {
     });
   }
   if (url.endsWith('/api/images/generate')) {
-    return jsonResponse(200, firstSiteImageBody());
+    return textResponse(200, firstSiteGenerationStream(), 'text/event-stream');
   }
   if (url.endsWith('/api/images/edit')) {
     return textResponse(200, firstSiteEditStream(), 'text/event-stream');
@@ -164,6 +191,14 @@ function firstSiteEditStream() {
     'data: {"type":"partial_image","b64_json":"preview"}\n\n',
     `data: ${JSON.stringify({ type: 'completed', ...firstSiteImageBody() })}\n\n`,
     'data: {"type":"done"}\n\n'
+  ].join('');
+}
+
+function firstSiteGenerationStream() {
+  return [
+    'data: {"type":"partial_image","b64_json":"preview"}\n\n',
+    `data: ${JSON.stringify({ type: 'completed', ...firstSiteImageBody() })}\n\n`,
+    'data: [DONE]\n\n'
   ].join('');
 }
 

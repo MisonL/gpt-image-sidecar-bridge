@@ -9,8 +9,6 @@ import {
   VALID_QUALITY_VALUES
 } from './first-site-config.mjs';
 import {
-  buildEditBody,
-  buildGenerationBody,
   extractSessionCookie,
   fetchWithTimeout,
   handleEditResponse,
@@ -22,6 +20,7 @@ import {
   readJson,
   upstreamError
 } from './first-site-response.mjs';
+import { buildEditBody, buildGenerationBody } from './first-site-request.mjs';
 import { normalizeEditRequest, normalizeGenerationRequest } from './openai-image-request.mjs';
 import { readSecretOption } from './secrets.mjs';
 
