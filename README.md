@@ -49,7 +49,7 @@
 cd <project-dir>
 export ADAPTER_API_KEY="<adapter-api-key>"
 export SECOND_SITE_EMAIL="your-email@example.com"
-export SECOND_SITE_PASSWORD="your-password"
+export SECOND_SITE_PASSWORD="<upstream-password>"
 ./scripts/deploy-docker.sh
 ```
 
@@ -60,7 +60,7 @@ cd <project-dir>
 export GPT_IMAGE_BRIDGE_PROVIDER="first-site"
 export ADAPTER_API_KEY="<adapter-api-key>"
 export FIRST_SITE_EMAIL="your-email@example.com"
-export FIRST_SITE_PASSWORD="your-password"
+export FIRST_SITE_PASSWORD="<upstream-password>"
 ./scripts/deploy-docker.sh
 ```
 
@@ -83,6 +83,26 @@ session cookie 或 session token 模式不能自动刷新过期会话。账号�
 - 监听宿主机 `http://127.0.0.1:3099/v1`。
 - 把运行凭据写入 `$HOME/.config/gpt-image-bridge/secrets/`。
 - 以只读文件挂载 secret，不把账号密码、cookie、token 或 adapter key 写入镜像或 Docker 环境变量。
+
+## 使用最新源码重新部署
+
+如果服务已经部署过，且 secret 文件仍保存在默认配置目录，可以直接拉取最新代码后复用 secret 文件重建容器。
+
+```bash
+git pull --ff-only
+
+export GPT_IMAGE_BRIDGE_PROVIDER="first-site"
+export ADAPTER_API_KEY="$(cat "$HOME/.config/gpt-image-bridge/secrets/adapter-api-key")"
+export FIRST_SITE_SESSION_COOKIE_FILE="$HOME/.config/gpt-image-bridge/secrets/first-site-session-cookie"
+./scripts/deploy-docker.sh
+./scripts/check-standalone-deployment.sh
+```
+
+按当前 provider 替换认证变量即可：第一站账号密码使用 `FIRST_SITE_EMAIL` 和
+`FIRST_SITE_PASSWORD`，第一站 session token 使用 `FIRST_SITE_SESSION_TOKEN_FILE`，
+第二站账号密码使用 `SECOND_SITE_EMAIL` 和 `SECOND_SITE_PASSWORD`。
+
+重新部署会替换同名容器 `gpt-image-bridge`，但不会把 secret 明文写入镜像或 Docker 环境变量。
 
 ## 验证
 
