@@ -36,7 +36,8 @@
 | 字段 | 接口 | 说明 |
 | --- | --- | --- |
 | `generationId` / `generation_id` | 文生图、图生图 | 单张图请求 ID，必须是非空字符串。 |
-| `generationIds` / `generationIds[]` / `generation_ids` | 文生图、图生图 | 多张图请求 ID。文生图传 JSON 数组，图生图可传 JSON 数组或多个同名字段。 |
+| `generationIds` | 文生图、图生图 | 多张图请求 ID。文生图传 JSON 数组，图生图传 JSON 数组或多个同名字段。 |
+| `generationIds[]` / `generation_ids` | 图生图 | multipart 多张图请求 ID，可传多个同名字段。 |
 | `mix_web_first` / `mixWebFirst` | 文生图、图生图 | `true` 或 `false`，覆盖 provider 默认值。 |
 | `prompt_optimization` / `promptOptimization` | 文生图、图生图 | `true` 或 `false`，覆盖 provider 默认值。 |
 | `output_compression` | 文生图、图生图 | 非 PNG 输出时透传压缩参数。 |
@@ -190,6 +191,7 @@ curl -sS http://127.0.0.1:3099/v1/images/edits \
   -F "size=1024x1024" \
   -F "mix_web_first=true" \
   -F "prompt_optimization=false" \
+  -F "stream=false" \
   -F "response_format=b64_json"
 ```
 
@@ -211,8 +213,9 @@ http://host.docker.internal:3099/v1
 注意事项：
 
 - 容器内的 `127.0.0.1` 指向下游容器自己，不是宿主机。
+- 非 Docker Desktop 的 Linux 容器可能需要宿主机网关 IP、反代域名，或显式配置 `host-gateway`。
 - 如果下游限制非 HTTPS 或非 localhost API URL，需要使用 HTTPS 反代域名，或调整下游 URL 校验规则。
-- 不需要流式时，建议在下游关闭 streaming。
+- 默认建议关闭 streaming；开启时只消费最终 `image_generation.completed` 事件和 `[DONE]`。
 
 常见下游配置：
 
