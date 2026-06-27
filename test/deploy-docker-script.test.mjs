@@ -36,8 +36,6 @@ test('docker deploy script keeps credentials out of image and env values', async
   assert.doesNotMatch(script, /-e ADAPTER_API_KEY=/);
   assert.doesNotMatch(script, /-e UPSTREAM_EMAIL=/);
   assert.doesNotMatch(script, /-e UPSTREAM_PASSWORD=/);
-  assert.doesNotMatch(script, /-e UPSTREAM_EMAIL=/);
-  assert.doesNotMatch(script, /-e UPSTREAM_PASSWORD=/);
   assert.doesNotMatch(script, /-e UPSTREAM_SESSION_COOKIE=/);
   assert.doesNotMatch(script, /-e UPSTREAM_SESSION_TOKEN=/);
 });
@@ -91,6 +89,28 @@ test('gitignore covers unified secret filenames', async () => {
   assert.match(gitignore, /^upstream-session-cookie$/m);
   assert.match(gitignore, /^upstream-session-token$/m);
   assert.match(gitignore, /^upstream-token$/m);
+});
+
+test('dockerignore keeps build context and secrets out of the image build', async () => {
+  const dockerignore = await readFile('.dockerignore', 'utf8');
+
+  assert.match(dockerignore, /^\.git$/m);
+  assert.match(dockerignore, /^node_modules$/m);
+  assert.match(dockerignore, /^test$/m);
+  assert.match(dockerignore, /^scripts$/m);
+  assert.match(dockerignore, /^upstream-email$/m);
+  assert.match(dockerignore, /^upstream-password$/m);
+  assert.match(dockerignore, /^upstream-session-cookie$/m);
+  assert.match(dockerignore, /^upstream-session-token$/m);
+  assert.match(dockerignore, /^upstream-token$/m);
+});
+
+test('dockerfile keeps runtime image inputs minimal', async () => {
+  const dockerfile = await readFile('Dockerfile', 'utf8');
+
+  assert.match(dockerfile, /COPY package\.json \.\/$/m);
+  assert.doesNotMatch(dockerfile, /README\.md/);
+  assert.match(dockerfile, /COPY src \.\/src/);
 });
 
 test('standalone deployment check documents container boundary', async () => {

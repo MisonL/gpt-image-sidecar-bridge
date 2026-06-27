@@ -84,6 +84,8 @@ session cookie 或 session token 模式不能自动刷新过期会话。账号�
 - 监听宿主机 `http://127.0.0.1:3099/v1`。
 - 把运行凭据写入 `$HOME/.config/gpt-image-bridge/secrets/`。
 - 以只读文件挂载 secret，不把账号密码、cookie、token 或 adapter key 写入镜像或 Docker 环境变量。
+- `.dockerignore` 会把测试目录、脚本目录和统一后的 secret 文件排除在构建上下文外。
+- 运行镜像只复制 `package.json` 和 `src/`，不携带测试或文档文件。
 
 ## 使用最新源码重新部署
 
