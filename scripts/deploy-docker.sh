@@ -108,12 +108,24 @@ case "$EFFECTIVE_PROVIDER" in
     fi
     ;;
   second-site)
-    if [ -z "${UPSTREAM_EMAIL:-}" ] && [ -z "${UPSTREAM_EMAIL_FILE:-}" ] && [ -z "${SECOND_SITE_EMAIL:-}" ] && [ -z "${SECOND_SITE_EMAIL_FILE:-}" ]; then
-      echo "UPSTREAM_EMAIL/SECOND_SITE_EMAIL is required" >&2
+    SECOND_SITE_HAS_EMAIL=false
+    SECOND_SITE_HAS_PASSWORD=false
+    SECOND_SITE_HAS_TOKEN=false
+    if [ -n "${UPSTREAM_EMAIL:-}" ] || [ -n "${UPSTREAM_EMAIL_FILE:-}" ] || [ -n "${SECOND_SITE_EMAIL:-}" ] || [ -n "${SECOND_SITE_EMAIL_FILE:-}" ]; then
+      SECOND_SITE_HAS_EMAIL=true
+    fi
+    if [ -n "${UPSTREAM_PASSWORD:-}" ] || [ -n "${UPSTREAM_PASSWORD_FILE:-}" ] || [ -n "${SECOND_SITE_PASSWORD:-}" ] || [ -n "${SECOND_SITE_PASSWORD_FILE:-}" ]; then
+      SECOND_SITE_HAS_PASSWORD=true
+    fi
+    if [ -n "${UPSTREAM_TOKEN:-}" ] || [ -n "${UPSTREAM_TOKEN_FILE:-}" ] || [ -n "${SECOND_SITE_TOKEN:-}" ] || [ -n "${SECOND_SITE_TOKEN_FILE:-}" ]; then
+      SECOND_SITE_HAS_TOKEN=true
+    fi
+    if [ "$SECOND_SITE_HAS_EMAIL" != "$SECOND_SITE_HAS_PASSWORD" ]; then
+      echo "UPSTREAM_EMAIL/SECOND_SITE_EMAIL and UPSTREAM_PASSWORD/SECOND_SITE_PASSWORD must be configured together" >&2
       exit 1
     fi
-    if [ -z "${UPSTREAM_PASSWORD:-}" ] && [ -z "${UPSTREAM_PASSWORD_FILE:-}" ] && [ -z "${SECOND_SITE_PASSWORD:-}" ] && [ -z "${SECOND_SITE_PASSWORD_FILE:-}" ]; then
-      echo "UPSTREAM_PASSWORD/SECOND_SITE_PASSWORD is required" >&2
+    if [ "$SECOND_SITE_HAS_TOKEN" = false ] && [ "$SECOND_SITE_HAS_EMAIL" = false ]; then
+      echo "Second-site deployment requires credentials or UPSTREAM_TOKEN/SECOND_SITE_TOKEN" >&2
       exit 1
     fi
     ;;
@@ -171,16 +183,15 @@ case "$EFFECTIVE_PROVIDER" in
 esac
 
 node -e "
-const provider = process.argv[1];
-const baseUrl = process.argv[2];
-const hostPort = Number(process.argv[3]);
-const containerPort = Number(process.argv[4]);
-const timeout = process.argv[5];
-const outputFormat = process.argv[6];
+const baseUrl = process.argv[1];
+const hostPort = Number(process.argv[2]);
+const containerPort = Number(process.argv[3]);
+const timeout = process.argv[4];
+const outputFormat = process.argv[5];
 try {
   const url = new URL(baseUrl);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
-    throw new Error(provider.toUpperCase().replace('-', '_') + '_BASE_URL must be an http(s) URL without credentials, query, or fragment');
+    throw new Error('UPSTREAM_BASE_URL must be an http(s) URL without credentials, query, or fragment');
   }
   for (const [name, value] of [['HOST_PORT', hostPort], ['PORT', containerPort]]) {
     if (!Number.isInteger(value) || value < 1 || value > 65535) {
@@ -190,20 +201,20 @@ try {
   if (timeout) {
     const timeoutMs = Number(timeout);
     if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-      throw new Error(provider.toUpperCase().replace('-', '_') + '_TIMEOUT_MS must be a positive integer');
+      throw new Error('UPSTREAM_TIMEOUT_MS must be a positive integer');
     }
   }
   const normalizedOutputFormat = (outputFormat || 'png').toLowerCase() === 'jpg'
     ? 'jpeg'
     : (outputFormat || 'png').toLowerCase();
   if (!['png', 'jpeg', 'webp'].includes(normalizedOutputFormat)) {
-    throw new Error(provider.toUpperCase().replace('-', '_') + '_OUTPUT_FORMAT must be png, jpeg, jpg, or webp');
+    throw new Error('UPSTREAM_OUTPUT_FORMAT must be png, jpeg, jpg, or webp');
   }
 } catch (error) {
   console.error(error.message);
   process.exit(1);
 }
-" "$EFFECTIVE_PROVIDER" "$EFFECTIVE_UPSTREAM_BASE_URL" "$EFFECTIVE_HOST_PORT" "$EFFECTIVE_CONTAINER_PORT" "${UPSTREAM_TIMEOUT_MS:-}" "${UPSTREAM_OUTPUT_FORMAT:-png}"
+" "$EFFECTIVE_UPSTREAM_BASE_URL" "$EFFECTIVE_HOST_PORT" "$EFFECTIVE_CONTAINER_PORT" "${UPSTREAM_TIMEOUT_MS:-}" "${UPSTREAM_OUTPUT_FORMAT:-png}"
 
 docker build -t "$IMAGE" "$PROJECT_DIR"
 
@@ -344,6 +355,8 @@ else
     -e UPSTREAM_EMAIL_FILE=/run/gpt-image-bridge/upstream-email \
     -e UPSTREAM_PASSWORD_FILE=/run/gpt-image-bridge/upstream-password \
     -e UPSTREAM_TOKEN_FILE=/run/gpt-image-bridge/upstream-token \
+    -e SECOND_SITE_EMAIL_FILE=/run/gpt-image-bridge/upstream-email \
+    -e SECOND_SITE_PASSWORD_FILE=/run/gpt-image-bridge/upstream-password \
     -e SECOND_SITE_TOKEN_FILE=/run/gpt-image-bridge/upstream-token \
     -e UPSTREAM_BASE_URL="$EFFECTIVE_UPSTREAM_BASE_URL" \
     -e UPSTREAM_MODEL="$UPSTREAM_MODEL" \

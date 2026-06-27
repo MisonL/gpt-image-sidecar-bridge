@@ -92,8 +92,7 @@ function readConfig(options) {
     token:
       options.token ??
       readSecretOption('UPSTREAM_TOKEN', process.env.UPSTREAM_TOKEN_FILE) ??
-      readSecretOption('SECOND_SITE_TOKEN', process.env.SECOND_SITE_TOKEN_FILE) ??
-      process.env.SECOND_SITE_TOKEN,
+      readSecretOption('SECOND_SITE_TOKEN', process.env.SECOND_SITE_TOKEN_FILE),
     fetchImpl: options.fetchImpl || globalThis.fetch,
     model: options.model ?? process.env.UPSTREAM_MODEL ?? process.env.SECOND_SITE_MODEL,
     outputFormat: options.outputFormat ?? process.env.UPSTREAM_OUTPUT_FORMAT ?? process.env.SECOND_SITE_OUTPUT_FORMAT,

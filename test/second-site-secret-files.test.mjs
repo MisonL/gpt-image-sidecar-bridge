@@ -124,6 +124,43 @@ test('reads second-site token from legacy file env without upstream token env va
   }
 });
 
+test('reads second-site token from upstream env var without a token file', async () => {
+  const previous = {
+    upstreamToken: process.env.UPSTREAM_TOKEN,
+    upstreamTokenFile: process.env.UPSTREAM_TOKEN_FILE,
+    legacyToken: process.env.SECOND_SITE_TOKEN,
+    legacyTokenFile: process.env.SECOND_SITE_TOKEN_FILE
+  };
+  try {
+    process.env.UPSTREAM_TOKEN = 'plain-upstream-token';
+    delete process.env.UPSTREAM_TOKEN_FILE;
+    delete process.env.SECOND_SITE_TOKEN;
+    delete process.env.SECOND_SITE_TOKEN_FILE;
+    const calls = [];
+    const client = createSecondSiteClient({
+      baseUrl: 'http://example.test',
+      email: 'refresh@example.test',
+      password: 'refresh-secret',
+      fetchImpl: async (url, options) => {
+        calls.push({ url, options });
+        if (url.endsWith('/v1/images/generations')) {
+          return jsonResponse(200, { created: 1, data: [{ b64_json: 'abc' }] });
+        }
+        throw new Error(`unexpected url: ${url}`);
+      }
+    });
+
+    await client.generate({ prompt: 'plain upstream token' });
+
+    assert.equal(calls[0].options.headers.authorization, 'Bearer plain-upstream-token');
+  } finally {
+    restoreEnv('UPSTREAM_TOKEN', previous.upstreamToken);
+    restoreEnv('UPSTREAM_TOKEN_FILE', previous.upstreamTokenFile);
+    restoreEnv('SECOND_SITE_TOKEN', previous.legacyToken);
+    restoreEnv('SECOND_SITE_TOKEN_FILE', previous.legacyTokenFile);
+  }
+});
+
 test('keeps file credentials in memory for token refresh after files are removed', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'second-site-adapter-'));
   try {

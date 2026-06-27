@@ -56,6 +56,10 @@ test('docker deploy script supports second-site credential files', async () => {
 
   assert.match(script, /write_secret "\$SECRET_DIR\/upstream-email" "\$UPSTREAM_EMAIL" "\$UPSTREAM_EMAIL_FILE" "UPSTREAM_EMAIL"/);
   assert.match(script, /write_secret "\$SECRET_DIR\/upstream-password" "\$UPSTREAM_PASSWORD" "\$UPSTREAM_PASSWORD_FILE" "UPSTREAM_PASSWORD"/);
+  assert.match(script, /SECOND_SITE_HAS_TOKEN=false/);
+  assert.match(script, /Second-site deployment requires credentials or UPSTREAM_TOKEN\/SECOND_SITE_TOKEN/);
+  assert.match(script, /SECOND_SITE_EMAIL_FILE=\/run\/gpt-image-bridge\/upstream-email/);
+  assert.match(script, /SECOND_SITE_PASSWORD_FILE=\/run\/gpt-image-bridge\/upstream-password/);
 });
 
 test('docker deploy script keeps legacy provider variables compatible', async () => {
@@ -74,6 +78,19 @@ test('docker deploy script prefers provider-specific base URLs before defaults',
 
   assert.match(script, /first-site[\s\S]*UPSTREAM_BASE_URL="\$\{UPSTREAM_BASE_URL:-\$\{FIRST_SITE_BASE_URL:-\}\}"/);
   assert.match(script, /second-site[\s\S]*UPSTREAM_BASE_URL="\$\{UPSTREAM_BASE_URL:-\$\{SECOND_SITE_BASE_URL:-\}\}"/);
+  assert.match(script, /UPSTREAM_BASE_URL must be an http\(s\) URL without credentials, query, or fragment/);
+  assert.match(script, /UPSTREAM_TIMEOUT_MS must be a positive integer/);
+  assert.match(script, /UPSTREAM_OUTPUT_FORMAT must be png, jpeg, jpg, or webp/);
+});
+
+test('gitignore covers unified secret filenames', async () => {
+  const gitignore = await readFile('.gitignore', 'utf8');
+
+  assert.match(gitignore, /^upstream-email$/m);
+  assert.match(gitignore, /^upstream-password$/m);
+  assert.match(gitignore, /^upstream-session-cookie$/m);
+  assert.match(gitignore, /^upstream-session-token$/m);
+  assert.match(gitignore, /^upstream-token$/m);
 });
 
 test('standalone deployment check documents container boundary', async () => {

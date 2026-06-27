@@ -5,6 +5,11 @@ node_modules/
 .env
 .env.*
 adapter-api-key
+upstream-email
+upstream-password
+upstream-session-cookie
+upstream-session-token
+upstream-token
 first-site-email
 first-site-password
 first-site-session-cookie

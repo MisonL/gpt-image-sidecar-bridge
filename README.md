@@ -249,7 +249,7 @@ streaming_strategy=off
 | `UPSTREAM_PASSWORD` / `UPSTREAM_PASSWORD_FILE` | 登录密码或密码文件。 |
 | `UPSTREAM_SESSION_COOKIE` / `UPSTREAM_SESSION_COOKIE_FILE` | 预置完整 session cookie。 |
 | `UPSTREAM_SESSION_TOKEN` / `UPSTREAM_SESSION_TOKEN_FILE` | 预置 Better Auth session token。 |
-| `UPSTREAM_TOKEN` / `UPSTREAM_TOKEN_FILE` | 第二类上游 token；仅 second-site provider 生效，401 后仍会用邮箱密码刷新。 |
+| `UPSTREAM_TOKEN` / `UPSTREAM_TOKEN_FILE` | 第二类上游 token；仅 second-site provider 生效。可单独用于部署，401 后若配置了邮箱密码会自动刷新，否则返回认证错误。 |
 | `UPSTREAM_TIMEOUT_MS` | 请求超时，默认 `240000`。 |
 | `UPSTREAM_OUTPUT_FORMAT` | 默认 `png`，可用 `png`、`jpeg`、`jpg`、`webp`。 |
 | `UPSTREAM_SIZE` | 文生图默认尺寸，默认 `1024x1024`。 |
