@@ -47,25 +47,80 @@ test('reads first-site credentials from files without requiring credential env v
   }
 });
 
+test('reads first-site credentials from legacy env vars without upstream env vars', async () => {
+  const previous = {
+    upstreamEmail: process.env.UPSTREAM_EMAIL,
+    upstreamPassword: process.env.UPSTREAM_PASSWORD,
+    legacyEmail: process.env.FIRST_SITE_EMAIL,
+    legacyPassword: process.env.FIRST_SITE_PASSWORD,
+    upstreamEmailFile: process.env.UPSTREAM_EMAIL_FILE,
+    upstreamPasswordFile: process.env.UPSTREAM_PASSWORD_FILE,
+    legacyEmailFile: process.env.FIRST_SITE_EMAIL_FILE,
+    legacyPasswordFile: process.env.FIRST_SITE_PASSWORD_FILE
+  };
+  process.env.FIRST_SITE_EMAIL = 'legacy-user@example.test';
+  process.env.FIRST_SITE_PASSWORD = 'legacy-secret';
+  delete process.env.UPSTREAM_EMAIL;
+  delete process.env.UPSTREAM_PASSWORD;
+  delete process.env.UPSTREAM_EMAIL_FILE;
+  delete process.env.UPSTREAM_PASSWORD_FILE;
+  delete process.env.FIRST_SITE_EMAIL_FILE;
+  delete process.env.FIRST_SITE_PASSWORD_FILE;
+  try {
+    const calls = [];
+    const client = createFirstSiteClient({
+      baseUrl: 'https://first.example.test',
+      fetchImpl: async (url, options) => {
+        calls.push({ url, options });
+        if (url.endsWith('/api/auth/sign-in/email')) {
+          return jsonResponse(200, { token: 'legacy-token' }, {
+            'set-cookie': '__Secure-better-auth.session_token=legacy-token; Path=/; HttpOnly; Secure'
+          });
+        }
+        if (url.endsWith('/api/images/generate')) return jsonResponse(200, imageBody());
+        if (url.endsWith('/api/storage/generated.png')) return imageResponse();
+        throw new Error(`unexpected url: ${url}`);
+      }
+    });
+
+    await client.generate({ prompt: 'legacy secret' });
+
+    assert.equal(calls[0].options.body, JSON.stringify({
+      email: 'legacy-user@example.test',
+      password: 'legacy-secret',
+      rememberMe: true
+    }));
+  } finally {
+    restoreEnv('UPSTREAM_EMAIL', previous.upstreamEmail);
+    restoreEnv('UPSTREAM_PASSWORD', previous.upstreamPassword);
+    restoreEnv('FIRST_SITE_EMAIL', previous.legacyEmail);
+    restoreEnv('FIRST_SITE_PASSWORD', previous.legacyPassword);
+    restoreEnv('UPSTREAM_EMAIL_FILE', previous.upstreamEmailFile);
+    restoreEnv('UPSTREAM_PASSWORD_FILE', previous.upstreamPasswordFile);
+    restoreEnv('FIRST_SITE_EMAIL_FILE', previous.legacyEmailFile);
+    restoreEnv('FIRST_SITE_PASSWORD_FILE', previous.legacyPasswordFile);
+  }
+});
+
 function setSecretFileEnv(emailFile, passwordFile) {
   const previous = {
-    emailFile: process.env.FIRST_SITE_EMAIL_FILE,
-    passwordFile: process.env.FIRST_SITE_PASSWORD_FILE,
-    email: process.env.FIRST_SITE_EMAIL,
-    password: process.env.FIRST_SITE_PASSWORD
+    emailFile: process.env.UPSTREAM_EMAIL_FILE,
+    passwordFile: process.env.UPSTREAM_PASSWORD_FILE,
+    email: process.env.UPSTREAM_EMAIL,
+    password: process.env.UPSTREAM_PASSWORD
   };
-  process.env.FIRST_SITE_EMAIL_FILE = emailFile;
-  process.env.FIRST_SITE_PASSWORD_FILE = passwordFile;
-  delete process.env.FIRST_SITE_EMAIL;
-  delete process.env.FIRST_SITE_PASSWORD;
+  process.env.UPSTREAM_EMAIL_FILE = emailFile;
+  process.env.UPSTREAM_PASSWORD_FILE = passwordFile;
+  delete process.env.UPSTREAM_EMAIL;
+  delete process.env.UPSTREAM_PASSWORD;
   return previous;
 }
 
 function restoreSecretFileEnv(previous) {
-  restoreEnv('FIRST_SITE_EMAIL_FILE', previous.emailFile);
-  restoreEnv('FIRST_SITE_PASSWORD_FILE', previous.passwordFile);
-  restoreEnv('FIRST_SITE_EMAIL', previous.email);
-  restoreEnv('FIRST_SITE_PASSWORD', previous.password);
+  restoreEnv('UPSTREAM_EMAIL_FILE', previous.emailFile);
+  restoreEnv('UPSTREAM_PASSWORD_FILE', previous.passwordFile);
+  restoreEnv('UPSTREAM_EMAIL', previous.email);
+  restoreEnv('UPSTREAM_PASSWORD', previous.password);
 }
 
 function imageBody() {

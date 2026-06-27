@@ -3,15 +3,15 @@ import { AdapterError } from './adapter-error.mjs';
 export const VALID_BACKGROUND_VALUES = new Set(['auto', 'opaque', 'transparent']);
 export const VALID_QUALITY_VALUES = new Set(['auto', 'low', 'medium', 'high']);
 
-export function normalizeBaseUrl(rawUrl) {
+export function normalizeBaseUrl(rawUrl, options = {}) {
   let url;
   try {
     url = new URL(rawUrl);
   } catch {
-    throw invalidBaseUrlError();
+    throw invalidBaseUrlError(options);
   }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
-    throw invalidBaseUrlError();
+    throw invalidBaseUrlError(options);
   }
   url.pathname = url.pathname.replace(/\/+$/, '');
   return url.toString().replace(/\/$/, '');
@@ -44,21 +44,21 @@ export function readBooleanOption(value, fallback, options) {
   });
 }
 
-export function readTimeoutMs(value, fallback) {
+export function readTimeoutMs(value, fallback, options = {}) {
   if (value === undefined || value === null || value === '') return fallback;
   const numeric = Number(value);
   if (!Number.isInteger(numeric) || numeric <= 0) {
-    throw new AdapterError('FIRST_SITE_TIMEOUT_MS must be a positive integer.', {
+    throw new AdapterError(`${options.name || 'UPSTREAM_TIMEOUT_MS'} must be a positive integer.`, {
       status: 500,
-      code: 'invalid_first_site_timeout_ms'
+      code: options.code || 'invalid_upstream_timeout_ms'
     });
   }
   return numeric;
 }
 
-function invalidBaseUrlError() {
-  return new AdapterError('Invalid first site base URL.', {
+function invalidBaseUrlError(options = {}) {
+  return new AdapterError(`Invalid ${options.name || 'UPSTREAM_BASE_URL'}.`, {
     status: 500,
-    code: 'invalid_first_site_base_url'
+    code: options.code || 'invalid_upstream_base_url'
   });
 }

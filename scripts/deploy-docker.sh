@@ -7,11 +7,56 @@ PROJECT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 CONFIG_DIR="${GPT_IMAGE_BRIDGE_CONFIG_DIR:-$HOME/.config/gpt-image-bridge}"
 SECRET_DIR="$CONFIG_DIR/secrets"
 EFFECTIVE_PROVIDER="${GPT_IMAGE_BRIDGE_PROVIDER:-second-site}"
-EFFECTIVE_SECOND_SITE_BASE_URL="${SECOND_SITE_BASE_URL:-http://154.9.255.153:2254}"
-EFFECTIVE_FIRST_SITE_BASE_URL="${FIRST_SITE_BASE_URL:-https://gpt2image.superapi.buzz}"
 EFFECTIVE_HOST_PORT="${HOST_PORT:-3099}"
 EFFECTIVE_CONTAINER_PORT="${PORT:-3099}"
-FIRST_SITE_AUTH_MODE=""
+FIRST_SITE_EMAIL="${FIRST_SITE_EMAIL:-}"
+FIRST_SITE_PASSWORD="${FIRST_SITE_PASSWORD:-}"
+FIRST_SITE_SESSION_COOKIE="${FIRST_SITE_SESSION_COOKIE:-}"
+FIRST_SITE_SESSION_TOKEN="${FIRST_SITE_SESSION_TOKEN:-}"
+FIRST_SITE_BASE_URL="${FIRST_SITE_BASE_URL:-}"
+FIRST_SITE_MODEL="${FIRST_SITE_MODEL:-}"
+FIRST_SITE_OUTPUT_FORMAT="${FIRST_SITE_OUTPUT_FORMAT:-}"
+FIRST_SITE_TIMEOUT_MS="${FIRST_SITE_TIMEOUT_MS:-}"
+FIRST_SITE_SIZE="${FIRST_SITE_SIZE:-}"
+FIRST_SITE_EDIT_SIZE="${FIRST_SITE_EDIT_SIZE:-}"
+FIRST_SITE_QUALITY="${FIRST_SITE_QUALITY:-}"
+FIRST_SITE_BACKGROUND="${FIRST_SITE_BACKGROUND:-}"
+FIRST_SITE_THINKING="${FIRST_SITE_THINKING:-}"
+FIRST_SITE_MODERATION="${FIRST_SITE_MODERATION:-}"
+FIRST_SITE_MIX_WEB_FIRST="${FIRST_SITE_MIX_WEB_FIRST:-}"
+FIRST_SITE_PROMPT_OPTIMIZATION="${FIRST_SITE_PROMPT_OPTIMIZATION:-}"
+FIRST_SITE_EMAIL_FILE="${FIRST_SITE_EMAIL_FILE:-}"
+FIRST_SITE_PASSWORD_FILE="${FIRST_SITE_PASSWORD_FILE:-}"
+FIRST_SITE_SESSION_COOKIE_FILE="${FIRST_SITE_SESSION_COOKIE_FILE:-}"
+FIRST_SITE_SESSION_TOKEN_FILE="${FIRST_SITE_SESSION_TOKEN_FILE:-}"
+SECOND_SITE_EMAIL="${SECOND_SITE_EMAIL:-}"
+SECOND_SITE_PASSWORD="${SECOND_SITE_PASSWORD:-}"
+SECOND_SITE_TOKEN="${SECOND_SITE_TOKEN:-}"
+SECOND_SITE_BASE_URL="${SECOND_SITE_BASE_URL:-}"
+SECOND_SITE_MODEL="${SECOND_SITE_MODEL:-}"
+SECOND_SITE_OUTPUT_FORMAT="${SECOND_SITE_OUTPUT_FORMAT:-}"
+SECOND_SITE_TIMEOUT_MS="${SECOND_SITE_TIMEOUT_MS:-}"
+SECOND_SITE_PAYMENT_MODE="${SECOND_SITE_PAYMENT_MODE:-}"
+SECOND_SITE_EMAIL_FILE="${SECOND_SITE_EMAIL_FILE:-}"
+SECOND_SITE_PASSWORD_FILE="${SECOND_SITE_PASSWORD_FILE:-}"
+SECOND_SITE_TOKEN_FILE="${SECOND_SITE_TOKEN_FILE:-}"
+UPSTREAM_AUTH_MODE=""
+UPSTREAM_EMAIL="${UPSTREAM_EMAIL:-}"
+UPSTREAM_PASSWORD="${UPSTREAM_PASSWORD:-}"
+UPSTREAM_SESSION_COOKIE="${UPSTREAM_SESSION_COOKIE:-}"
+UPSTREAM_SESSION_TOKEN="${UPSTREAM_SESSION_TOKEN:-}"
+UPSTREAM_TOKEN="${UPSTREAM_TOKEN:-}"
+UPSTREAM_MODEL="${UPSTREAM_MODEL:-}"
+UPSTREAM_OUTPUT_FORMAT="${UPSTREAM_OUTPUT_FORMAT:-}"
+UPSTREAM_TIMEOUT_MS="${UPSTREAM_TIMEOUT_MS:-}"
+UPSTREAM_PAYMENT_MODE="${UPSTREAM_PAYMENT_MODE:-}"
+UPSTREAM_MIX_WEB_FIRST="${UPSTREAM_MIX_WEB_FIRST:-}"
+UPSTREAM_PROMPT_OPTIMIZATION="${UPSTREAM_PROMPT_OPTIMIZATION:-}"
+UPSTREAM_BASE_URL="${UPSTREAM_BASE_URL:-}"
+UPSTREAM_EMAIL_FILE="${UPSTREAM_EMAIL_FILE:-}"
+UPSTREAM_PASSWORD_FILE="${UPSTREAM_PASSWORD_FILE:-}"
+UPSTREAM_SESSION_COOKIE_FILE="${UPSTREAM_SESSION_COOKIE_FILE:-}"
+UPSTREAM_SESSION_TOKEN_FILE="${UPSTREAM_SESSION_TOKEN_FILE:-}"
 
 write_secret() {
   target="$1"
@@ -36,45 +81,92 @@ fi
 
 case "$EFFECTIVE_PROVIDER" in
   first-site)
-    if [ -n "${FIRST_SITE_EMAIL:-}" ] || [ -n "${FIRST_SITE_PASSWORD:-}" ]; then
-      if [ -z "${FIRST_SITE_EMAIL:-}" ] || [ -z "${FIRST_SITE_PASSWORD:-}" ]; then
-        echo "FIRST_SITE_EMAIL and FIRST_SITE_PASSWORD must be configured together" >&2
+    if [ -n "${UPSTREAM_EMAIL:-}" ] || [ -n "${UPSTREAM_EMAIL_FILE:-}" ] || [ -n "${FIRST_SITE_EMAIL:-}" ] || [ -n "${FIRST_SITE_EMAIL_FILE:-}" ] || [ -n "${UPSTREAM_PASSWORD:-}" ] || [ -n "${UPSTREAM_PASSWORD_FILE:-}" ] || [ -n "${FIRST_SITE_PASSWORD:-}" ] || [ -n "${FIRST_SITE_PASSWORD_FILE:-}" ]; then
+      if { [ -z "${UPSTREAM_EMAIL:-}" ] && [ -z "${UPSTREAM_EMAIL_FILE:-}" ] && [ -z "${FIRST_SITE_EMAIL:-}" ] && [ -z "${FIRST_SITE_EMAIL_FILE:-}" ]; } || { [ -z "${UPSTREAM_PASSWORD:-}" ] && [ -z "${UPSTREAM_PASSWORD_FILE:-}" ] && [ -z "${FIRST_SITE_PASSWORD:-}" ] && [ -z "${FIRST_SITE_PASSWORD_FILE:-}" ]; }; then
+        echo "UPSTREAM_EMAIL/FIRST_SITE_EMAIL and UPSTREAM_PASSWORD/FIRST_SITE_PASSWORD must be configured together" >&2
         exit 1
       fi
-      FIRST_SITE_AUTH_MODE="credentials"
+      UPSTREAM_AUTH_MODE="credentials"
     fi
-    if [ -n "${FIRST_SITE_SESSION_COOKIE:-}" ] || [ -n "${FIRST_SITE_SESSION_COOKIE_FILE:-}" ]; then
-      if [ -n "$FIRST_SITE_AUTH_MODE" ]; then
-        echo "Configure only one first-site authentication method" >&2
+    if [ -n "${UPSTREAM_SESSION_COOKIE:-}" ] || [ -n "${UPSTREAM_SESSION_COOKIE_FILE:-}" ] || [ -n "${FIRST_SITE_SESSION_COOKIE:-}" ] || [ -n "${FIRST_SITE_SESSION_COOKIE_FILE:-}" ]; then
+      if [ -n "$UPSTREAM_AUTH_MODE" ]; then
+        echo "Configure only one upstream authentication method" >&2
         exit 1
       fi
-      FIRST_SITE_AUTH_MODE="session-cookie"
+      UPSTREAM_AUTH_MODE="session-cookie"
     fi
-    if [ -n "${FIRST_SITE_SESSION_TOKEN:-}" ] || [ -n "${FIRST_SITE_SESSION_TOKEN_FILE:-}" ]; then
-      if [ -n "$FIRST_SITE_AUTH_MODE" ]; then
-        echo "Configure only one first-site authentication method" >&2
+    if [ -n "${UPSTREAM_SESSION_TOKEN:-}" ] || [ -n "${UPSTREAM_SESSION_TOKEN_FILE:-}" ] || [ -n "${FIRST_SITE_SESSION_TOKEN:-}" ] || [ -n "${FIRST_SITE_SESSION_TOKEN_FILE:-}" ]; then
+      if [ -n "$UPSTREAM_AUTH_MODE" ]; then
+        echo "Configure only one upstream authentication method" >&2
         exit 1
       fi
-      FIRST_SITE_AUTH_MODE="session-token"
+      UPSTREAM_AUTH_MODE="session-token"
     fi
-    if [ -z "$FIRST_SITE_AUTH_MODE" ]; then
-      echo "First-site deployment requires credentials, a session cookie, or a session token" >&2
+    if [ -z "$UPSTREAM_AUTH_MODE" ]; then
+      echo "Upstream deployment requires credentials, a session cookie, or a session token" >&2
       exit 1
     fi
     ;;
   second-site)
-    if [ -z "${SECOND_SITE_EMAIL:-}" ]; then
-      echo "SECOND_SITE_EMAIL is required" >&2
+    if [ -z "${UPSTREAM_EMAIL:-}" ] && [ -z "${UPSTREAM_EMAIL_FILE:-}" ] && [ -z "${SECOND_SITE_EMAIL:-}" ] && [ -z "${SECOND_SITE_EMAIL_FILE:-}" ]; then
+      echo "UPSTREAM_EMAIL/SECOND_SITE_EMAIL is required" >&2
       exit 1
     fi
-    if [ -z "${SECOND_SITE_PASSWORD:-}" ]; then
-      echo "SECOND_SITE_PASSWORD is required" >&2
+    if [ -z "${UPSTREAM_PASSWORD:-}" ] && [ -z "${UPSTREAM_PASSWORD_FILE:-}" ] && [ -z "${SECOND_SITE_PASSWORD:-}" ] && [ -z "${SECOND_SITE_PASSWORD_FILE:-}" ]; then
+      echo "UPSTREAM_PASSWORD/SECOND_SITE_PASSWORD is required" >&2
       exit 1
     fi
     ;;
   *)
     echo "GPT_IMAGE_BRIDGE_PROVIDER must be first-site or second-site" >&2
     exit 1
+    ;;
+esac
+
+case "$EFFECTIVE_PROVIDER" in
+  first-site)
+    UPSTREAM_BASE_URL="${UPSTREAM_BASE_URL:-${FIRST_SITE_BASE_URL:-}}"
+    EFFECTIVE_UPSTREAM_BASE_URL="${UPSTREAM_BASE_URL:-https://gpt2image.superapi.buzz}"
+    ;;
+  second-site)
+    UPSTREAM_BASE_URL="${UPSTREAM_BASE_URL:-${SECOND_SITE_BASE_URL:-}}"
+    EFFECTIVE_UPSTREAM_BASE_URL="${UPSTREAM_BASE_URL:-http://154.9.255.153:2254}"
+    ;;
+esac
+
+case "$EFFECTIVE_PROVIDER" in
+  first-site)
+    UPSTREAM_EMAIL="${UPSTREAM_EMAIL:-${FIRST_SITE_EMAIL:-}}"
+    UPSTREAM_EMAIL_FILE="${UPSTREAM_EMAIL_FILE:-${FIRST_SITE_EMAIL_FILE:-}}"
+    UPSTREAM_PASSWORD="${UPSTREAM_PASSWORD:-${FIRST_SITE_PASSWORD:-}}"
+    UPSTREAM_PASSWORD_FILE="${UPSTREAM_PASSWORD_FILE:-${FIRST_SITE_PASSWORD_FILE:-}}"
+    UPSTREAM_SESSION_COOKIE="${UPSTREAM_SESSION_COOKIE:-${FIRST_SITE_SESSION_COOKIE:-}}"
+    UPSTREAM_SESSION_COOKIE_FILE="${UPSTREAM_SESSION_COOKIE_FILE:-${FIRST_SITE_SESSION_COOKIE_FILE:-}}"
+    UPSTREAM_SESSION_TOKEN="${UPSTREAM_SESSION_TOKEN:-${FIRST_SITE_SESSION_TOKEN:-}}"
+    UPSTREAM_SESSION_TOKEN_FILE="${UPSTREAM_SESSION_TOKEN_FILE:-${FIRST_SITE_SESSION_TOKEN_FILE:-}}"
+    UPSTREAM_MODEL="${UPSTREAM_MODEL:-${FIRST_SITE_MODEL:-gpt-image-2}}"
+    UPSTREAM_OUTPUT_FORMAT="${UPSTREAM_OUTPUT_FORMAT:-${FIRST_SITE_OUTPUT_FORMAT:-png}}"
+    UPSTREAM_TIMEOUT_MS="${UPSTREAM_TIMEOUT_MS:-${FIRST_SITE_TIMEOUT_MS:-240000}}"
+    UPSTREAM_SIZE="${UPSTREAM_SIZE:-${FIRST_SITE_SIZE:-1024x1024}}"
+    UPSTREAM_EDIT_SIZE="${UPSTREAM_EDIT_SIZE:-${FIRST_SITE_EDIT_SIZE:-1024x1024}}"
+    UPSTREAM_QUALITY="${UPSTREAM_QUALITY:-${FIRST_SITE_QUALITY:-auto}}"
+    UPSTREAM_BACKGROUND="${UPSTREAM_BACKGROUND:-${FIRST_SITE_BACKGROUND:-auto}}"
+    UPSTREAM_THINKING="${UPSTREAM_THINKING:-${FIRST_SITE_THINKING:-low}}"
+    UPSTREAM_MODERATION="${UPSTREAM_MODERATION:-${FIRST_SITE_MODERATION:-auto}}"
+    UPSTREAM_MIX_WEB_FIRST="${UPSTREAM_MIX_WEB_FIRST:-${FIRST_SITE_MIX_WEB_FIRST:-true}}"
+    UPSTREAM_PROMPT_OPTIMIZATION="${UPSTREAM_PROMPT_OPTIMIZATION:-${FIRST_SITE_PROMPT_OPTIMIZATION:-false}}"
+    ;;
+  second-site)
+    UPSTREAM_EMAIL="${UPSTREAM_EMAIL:-${SECOND_SITE_EMAIL:-}}"
+    UPSTREAM_EMAIL_FILE="${UPSTREAM_EMAIL_FILE:-${SECOND_SITE_EMAIL_FILE:-}}"
+    UPSTREAM_PASSWORD="${UPSTREAM_PASSWORD:-${SECOND_SITE_PASSWORD:-}}"
+    UPSTREAM_PASSWORD_FILE="${UPSTREAM_PASSWORD_FILE:-${SECOND_SITE_PASSWORD_FILE:-}}"
+    UPSTREAM_TOKEN="${UPSTREAM_TOKEN:-${SECOND_SITE_TOKEN:-}}"
+    UPSTREAM_TOKEN_FILE="${UPSTREAM_TOKEN_FILE:-${SECOND_SITE_TOKEN_FILE:-}}"
+    UPSTREAM_MODEL="${UPSTREAM_MODEL:-${SECOND_SITE_MODEL:-gpt-image-2}}"
+    UPSTREAM_OUTPUT_FORMAT="${UPSTREAM_OUTPUT_FORMAT:-${SECOND_SITE_OUTPUT_FORMAT:-png}}"
+    UPSTREAM_TIMEOUT_MS="${UPSTREAM_TIMEOUT_MS:-${SECOND_SITE_TIMEOUT_MS:-240000}}"
+    UPSTREAM_PAYMENT_MODE="${UPSTREAM_PAYMENT_MODE:-${SECOND_SITE_PAYMENT_MODE:-tier}}"
     ;;
 esac
 
@@ -111,7 +203,7 @@ try {
   console.error(error.message);
   process.exit(1);
 }
-" "$EFFECTIVE_PROVIDER" "$(if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then printf '%s' "$EFFECTIVE_FIRST_SITE_BASE_URL"; else printf '%s' "$EFFECTIVE_SECOND_SITE_BASE_URL"; fi)" "$EFFECTIVE_HOST_PORT" "$EFFECTIVE_CONTAINER_PORT" "$(if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then printf '%s' "${FIRST_SITE_TIMEOUT_MS:-}"; else printf '%s' "${SECOND_SITE_TIMEOUT_MS:-}"; fi)" "$(if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then printf '%s' "${FIRST_SITE_OUTPUT_FORMAT:-png}"; else printf '%s' "${SECOND_SITE_OUTPUT_FORMAT:-png}"; fi)"
+" "$EFFECTIVE_PROVIDER" "$EFFECTIVE_UPSTREAM_BASE_URL" "$EFFECTIVE_HOST_PORT" "$EFFECTIVE_CONTAINER_PORT" "${UPSTREAM_TIMEOUT_MS:-}" "${UPSTREAM_OUTPUT_FORMAT:-png}"
 
 docker build -t "$IMAGE" "$PROJECT_DIR"
 
@@ -122,25 +214,25 @@ fi
 mkdir -p "$SECRET_DIR"
 chmod 700 "$CONFIG_DIR" "$SECRET_DIR"
 if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then
-  case "$FIRST_SITE_AUTH_MODE" in
+  case "$UPSTREAM_AUTH_MODE" in
     session-cookie)
-      if [ -n "${FIRST_SITE_SESSION_COOKIE_FILE:-}" ]; then
-        if [ ! -s "$FIRST_SITE_SESSION_COOKIE_FILE" ]; then
-          echo "FIRST_SITE_SESSION_COOKIE file must exist and must not be empty" >&2
+      if [ -n "${UPSTREAM_SESSION_COOKIE_FILE:-}" ]; then
+        if [ ! -s "$UPSTREAM_SESSION_COOKIE_FILE" ]; then
+          echo "UPSTREAM_SESSION_COOKIE_FILE must exist and must not be empty" >&2
           exit 1
         fi
-        FIRST_SITE_SESSION_COOKIE="$(cat "$FIRST_SITE_SESSION_COOKIE_FILE")"
-        FIRST_SITE_SESSION_COOKIE_FILE=""
+        UPSTREAM_SESSION_COOKIE="$(cat "$UPSTREAM_SESSION_COOKIE_FILE")"
+        UPSTREAM_SESSION_COOKIE_FILE=""
       fi
       ;;
     session-token)
-      if [ -n "${FIRST_SITE_SESSION_TOKEN_FILE:-}" ]; then
-        if [ ! -s "$FIRST_SITE_SESSION_TOKEN_FILE" ]; then
-          echo "FIRST_SITE_SESSION_TOKEN file must exist and must not be empty" >&2
+      if [ -n "${UPSTREAM_SESSION_TOKEN_FILE:-}" ]; then
+        if [ ! -s "$UPSTREAM_SESSION_TOKEN_FILE" ]; then
+          echo "UPSTREAM_SESSION_TOKEN_FILE must exist and must not be empty" >&2
           exit 1
         fi
-        FIRST_SITE_SESSION_TOKEN="$(cat "$FIRST_SITE_SESSION_TOKEN_FILE")"
-        FIRST_SITE_SESSION_TOKEN_FILE=""
+        UPSTREAM_SESSION_TOKEN="$(cat "$UPSTREAM_SESSION_TOKEN_FILE")"
+        UPSTREAM_SESSION_TOKEN_FILE=""
       fi
       ;;
   esac
@@ -148,46 +240,46 @@ fi
 umask 077
 rm -f \
   "$SECRET_DIR/adapter-api-key" \
-  "$SECRET_DIR/second-site-email" \
-  "$SECRET_DIR/second-site-password" \
-  "$SECRET_DIR/first-site-email" \
-  "$SECRET_DIR/first-site-password" \
-  "$SECRET_DIR/first-site-session-cookie" \
-  "$SECRET_DIR/first-site-session-token"
+  "$SECRET_DIR/upstream-email" \
+  "$SECRET_DIR/upstream-password" \
+  "$SECRET_DIR/upstream-session-cookie" \
+  "$SECRET_DIR/upstream-session-token" \
+  "$SECRET_DIR/upstream-token"
 printf '%s' "$ADAPTER_API_KEY" > "$SECRET_DIR/adapter-api-key"
 if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then
-  case "$FIRST_SITE_AUTH_MODE" in
+  case "$UPSTREAM_AUTH_MODE" in
     credentials)
-      write_secret "$SECRET_DIR/first-site-email" "$FIRST_SITE_EMAIL" "" "FIRST_SITE_EMAIL"
-      write_secret "$SECRET_DIR/first-site-password" "$FIRST_SITE_PASSWORD" "" "FIRST_SITE_PASSWORD"
+      write_secret "$SECRET_DIR/upstream-email" "$UPSTREAM_EMAIL" "$UPSTREAM_EMAIL_FILE" "UPSTREAM_EMAIL"
+      write_secret "$SECRET_DIR/upstream-password" "$UPSTREAM_PASSWORD" "$UPSTREAM_PASSWORD_FILE" "UPSTREAM_PASSWORD"
       ;;
     session-cookie)
-      write_secret "$SECRET_DIR/first-site-session-cookie" "${FIRST_SITE_SESSION_COOKIE:-}" "${FIRST_SITE_SESSION_COOKIE_FILE:-}" "FIRST_SITE_SESSION_COOKIE"
+      write_secret "$SECRET_DIR/upstream-session-cookie" "$UPSTREAM_SESSION_COOKIE" "$UPSTREAM_SESSION_COOKIE_FILE" "UPSTREAM_SESSION_COOKIE"
       ;;
     session-token)
-      write_secret "$SECRET_DIR/first-site-session-token" "${FIRST_SITE_SESSION_TOKEN:-}" "${FIRST_SITE_SESSION_TOKEN_FILE:-}" "FIRST_SITE_SESSION_TOKEN"
+      write_secret "$SECRET_DIR/upstream-session-token" "$UPSTREAM_SESSION_TOKEN" "$UPSTREAM_SESSION_TOKEN_FILE" "UPSTREAM_SESSION_TOKEN"
       ;;
   esac
 else
-  printf '%s' "$SECOND_SITE_EMAIL" > "$SECRET_DIR/second-site-email"
-  printf '%s' "$SECOND_SITE_PASSWORD" > "$SECRET_DIR/second-site-password"
+  write_secret "$SECRET_DIR/upstream-email" "$UPSTREAM_EMAIL" "$UPSTREAM_EMAIL_FILE" "UPSTREAM_EMAIL"
+  write_secret "$SECRET_DIR/upstream-password" "$UPSTREAM_PASSWORD" "$UPSTREAM_PASSWORD_FILE" "UPSTREAM_PASSWORD"
+  write_secret "$SECRET_DIR/upstream-token" "$UPSTREAM_TOKEN" "$UPSTREAM_TOKEN_FILE" "UPSTREAM_TOKEN"
 fi
 umask 022
 chmod 400 "$SECRET_DIR/adapter-api-key"
 if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then
-  case "$FIRST_SITE_AUTH_MODE" in
+  case "$UPSTREAM_AUTH_MODE" in
     credentials)
-      chmod 400 "$SECRET_DIR/first-site-email" "$SECRET_DIR/first-site-password"
+      chmod 400 "$SECRET_DIR/upstream-email" "$SECRET_DIR/upstream-password"
       ;;
     session-cookie)
-      chmod 400 "$SECRET_DIR/first-site-session-cookie"
+      chmod 400 "$SECRET_DIR/upstream-session-cookie"
       ;;
     session-token)
-      chmod 400 "$SECRET_DIR/first-site-session-token"
+      chmod 400 "$SECRET_DIR/upstream-session-token"
       ;;
   esac
 else
-  chmod 400 "$SECRET_DIR/second-site-email" "$SECRET_DIR/second-site-password"
+  chmod 400 "$SECRET_DIR/upstream-email" "$SECRET_DIR/upstream-password" "$SECRET_DIR/upstream-token"
 fi
 
 if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then
@@ -198,32 +290,42 @@ if [ "$EFFECTIVE_PROVIDER" = "first-site" ]; then
     --mount type=bind,source="$SECRET_DIR/adapter-api-key",target=/run/gpt-image-bridge/adapter-api-key,readonly \
     -e ADAPTER_API_KEY_FILE=/run/gpt-image-bridge/adapter-api-key \
     -e GPT_IMAGE_BRIDGE_PROVIDER=first-site
-  case "$FIRST_SITE_AUTH_MODE" in
+  case "$UPSTREAM_AUTH_MODE" in
     credentials)
       set -- "$@" \
-        --mount type=bind,source="$SECRET_DIR/first-site-email",target=/run/gpt-image-bridge/first-site-email,readonly \
-        --mount type=bind,source="$SECRET_DIR/first-site-password",target=/run/gpt-image-bridge/first-site-password,readonly \
-        -e FIRST_SITE_EMAIL_FILE=/run/gpt-image-bridge/first-site-email \
-        -e FIRST_SITE_PASSWORD_FILE=/run/gpt-image-bridge/first-site-password
+        --mount type=bind,source="$SECRET_DIR/upstream-email",target=/run/gpt-image-bridge/upstream-email,readonly \
+        --mount type=bind,source="$SECRET_DIR/upstream-password",target=/run/gpt-image-bridge/upstream-password,readonly \
+        -e UPSTREAM_EMAIL_FILE=/run/gpt-image-bridge/upstream-email \
+        -e UPSTREAM_PASSWORD_FILE=/run/gpt-image-bridge/upstream-password \
+        -e FIRST_SITE_EMAIL_FILE=/run/gpt-image-bridge/upstream-email \
+        -e FIRST_SITE_PASSWORD_FILE=/run/gpt-image-bridge/upstream-password
       ;;
     session-cookie)
       set -- "$@" \
-        --mount type=bind,source="$SECRET_DIR/first-site-session-cookie",target=/run/gpt-image-bridge/first-site-session-cookie,readonly \
-        -e FIRST_SITE_SESSION_COOKIE_FILE=/run/gpt-image-bridge/first-site-session-cookie
+        --mount type=bind,source="$SECRET_DIR/upstream-session-cookie",target=/run/gpt-image-bridge/upstream-session-cookie,readonly \
+        -e UPSTREAM_SESSION_COOKIE_FILE=/run/gpt-image-bridge/upstream-session-cookie \
+        -e FIRST_SITE_SESSION_COOKIE_FILE=/run/gpt-image-bridge/upstream-session-cookie
       ;;
     session-token)
       set -- "$@" \
-        --mount type=bind,source="$SECRET_DIR/first-site-session-token",target=/run/gpt-image-bridge/first-site-session-token,readonly \
-        -e FIRST_SITE_SESSION_TOKEN_FILE=/run/gpt-image-bridge/first-site-session-token
+        --mount type=bind,source="$SECRET_DIR/upstream-session-token",target=/run/gpt-image-bridge/upstream-session-token,readonly \
+        -e UPSTREAM_SESSION_TOKEN_FILE=/run/gpt-image-bridge/upstream-session-token \
+        -e FIRST_SITE_SESSION_TOKEN_FILE=/run/gpt-image-bridge/upstream-session-token
       ;;
   esac
   set -- "$@" \
-    -e FIRST_SITE_BASE_URL="$EFFECTIVE_FIRST_SITE_BASE_URL" \
-    -e FIRST_SITE_MODEL="${FIRST_SITE_MODEL:-}" \
-    -e FIRST_SITE_TIMEOUT_MS="${FIRST_SITE_TIMEOUT_MS:-}" \
-    -e FIRST_SITE_OUTPUT_FORMAT="${FIRST_SITE_OUTPUT_FORMAT:-png}" \
-    -e FIRST_SITE_MIX_WEB_FIRST="${FIRST_SITE_MIX_WEB_FIRST:-true}" \
-    -e FIRST_SITE_PROMPT_OPTIMIZATION="${FIRST_SITE_PROMPT_OPTIMIZATION:-false}" \
+    -e UPSTREAM_BASE_URL="$EFFECTIVE_UPSTREAM_BASE_URL" \
+    -e UPSTREAM_MODEL="$UPSTREAM_MODEL" \
+    -e UPSTREAM_TIMEOUT_MS="$UPSTREAM_TIMEOUT_MS" \
+    -e UPSTREAM_OUTPUT_FORMAT="${UPSTREAM_OUTPUT_FORMAT:-png}" \
+    -e UPSTREAM_SIZE="${UPSTREAM_SIZE:-1024x1024}" \
+    -e UPSTREAM_EDIT_SIZE="${UPSTREAM_EDIT_SIZE:-1024x1024}" \
+    -e UPSTREAM_QUALITY="${UPSTREAM_QUALITY:-auto}" \
+    -e UPSTREAM_BACKGROUND="${UPSTREAM_BACKGROUND:-auto}" \
+    -e UPSTREAM_THINKING="${UPSTREAM_THINKING:-low}" \
+    -e UPSTREAM_MODERATION="${UPSTREAM_MODERATION:-auto}" \
+    -e UPSTREAM_MIX_WEB_FIRST="${UPSTREAM_MIX_WEB_FIRST:-true}" \
+    -e UPSTREAM_PROMPT_OPTIMIZATION="${UPSTREAM_PROMPT_OPTIMIZATION:-false}" \
     -e HOST=0.0.0.0 \
     -e PORT="$EFFECTIVE_CONTAINER_PORT" \
     "$IMAGE"
@@ -234,17 +336,20 @@ else
     --restart unless-stopped \
     -p "127.0.0.1:$EFFECTIVE_HOST_PORT:$EFFECTIVE_CONTAINER_PORT" \
     --mount type=bind,source="$SECRET_DIR/adapter-api-key",target=/run/gpt-image-bridge/adapter-api-key,readonly \
-    --mount type=bind,source="$SECRET_DIR/second-site-email",target=/run/gpt-image-bridge/second-site-email,readonly \
-    --mount type=bind,source="$SECRET_DIR/second-site-password",target=/run/gpt-image-bridge/second-site-password,readonly \
+    --mount type=bind,source="$SECRET_DIR/upstream-email",target=/run/gpt-image-bridge/upstream-email,readonly \
+    --mount type=bind,source="$SECRET_DIR/upstream-password",target=/run/gpt-image-bridge/upstream-password,readonly \
+    --mount type=bind,source="$SECRET_DIR/upstream-token",target=/run/gpt-image-bridge/upstream-token,readonly \
     -e ADAPTER_API_KEY_FILE=/run/gpt-image-bridge/adapter-api-key \
     -e GPT_IMAGE_BRIDGE_PROVIDER=second-site \
-    -e SECOND_SITE_EMAIL_FILE=/run/gpt-image-bridge/second-site-email \
-    -e SECOND_SITE_PASSWORD_FILE=/run/gpt-image-bridge/second-site-password \
-    -e SECOND_SITE_BASE_URL="$EFFECTIVE_SECOND_SITE_BASE_URL" \
-    -e SECOND_SITE_MODEL="${SECOND_SITE_MODEL:-}" \
-    -e SECOND_SITE_TIMEOUT_MS="${SECOND_SITE_TIMEOUT_MS:-}" \
-    -e SECOND_SITE_PAYMENT_MODE="${SECOND_SITE_PAYMENT_MODE:-tier}" \
-    -e SECOND_SITE_OUTPUT_FORMAT="${SECOND_SITE_OUTPUT_FORMAT:-png}" \
+    -e UPSTREAM_EMAIL_FILE=/run/gpt-image-bridge/upstream-email \
+    -e UPSTREAM_PASSWORD_FILE=/run/gpt-image-bridge/upstream-password \
+    -e UPSTREAM_TOKEN_FILE=/run/gpt-image-bridge/upstream-token \
+    -e SECOND_SITE_TOKEN_FILE=/run/gpt-image-bridge/upstream-token \
+    -e UPSTREAM_BASE_URL="$EFFECTIVE_UPSTREAM_BASE_URL" \
+    -e UPSTREAM_MODEL="$UPSTREAM_MODEL" \
+    -e UPSTREAM_TIMEOUT_MS="$UPSTREAM_TIMEOUT_MS" \
+    -e UPSTREAM_PAYMENT_MODE="${UPSTREAM_PAYMENT_MODE:-tier}" \
+    -e UPSTREAM_OUTPUT_FORMAT="${UPSTREAM_OUTPUT_FORMAT:-png}" \
     -e HOST=0.0.0.0 \
     -e PORT="$EFFECTIVE_CONTAINER_PORT" \
     "$IMAGE" >/dev/null

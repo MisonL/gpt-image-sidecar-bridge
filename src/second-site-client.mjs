@@ -1,4 +1,5 @@
 import { AdapterError } from './adapter-error.mjs';
+import { normalizeBaseUrl, readTimeoutMs } from './first-site-config.mjs';
 import { normalizeGenerationRequest } from './openai-image-request.mjs';
 import { redactSensitiveDetails } from './redact-sensitive-details.mjs';
 import { readSecretOption } from './secrets.mjs';
@@ -75,40 +76,30 @@ async function postGeneration(config, body, bearerToken) {
 
 function readConfig(options) {
   const baseUrl = normalizeBaseUrl(
-    options.baseUrl || process.env.SECOND_SITE_BASE_URL || 'http://154.9.255.153:2254'
+    options.baseUrl || process.env.UPSTREAM_BASE_URL || process.env.SECOND_SITE_BASE_URL || 'http://154.9.255.153:2254',
+    { name: 'UPSTREAM_BASE_URL', code: 'invalid_upstream_base_url' }
   );
   return {
     baseUrl,
-    email: options.email ?? readSecretOption('SECOND_SITE_EMAIL', process.env.SECOND_SITE_EMAIL_FILE),
-    password: options.password ?? readSecretOption('SECOND_SITE_PASSWORD', process.env.SECOND_SITE_PASSWORD_FILE),
-    token: options.token ?? process.env.SECOND_SITE_TOKEN,
+    email:
+      options.email ??
+      readSecretOption('UPSTREAM_EMAIL', process.env.UPSTREAM_EMAIL_FILE) ??
+      readSecretOption('SECOND_SITE_EMAIL', process.env.SECOND_SITE_EMAIL_FILE),
+    password:
+      options.password ??
+      readSecretOption('UPSTREAM_PASSWORD', process.env.UPSTREAM_PASSWORD_FILE) ??
+      readSecretOption('SECOND_SITE_PASSWORD', process.env.SECOND_SITE_PASSWORD_FILE),
+    token:
+      options.token ??
+      readSecretOption('UPSTREAM_TOKEN', process.env.UPSTREAM_TOKEN_FILE) ??
+      readSecretOption('SECOND_SITE_TOKEN', process.env.SECOND_SITE_TOKEN_FILE) ??
+      process.env.SECOND_SITE_TOKEN,
     fetchImpl: options.fetchImpl || globalThis.fetch,
-    model: options.model ?? process.env.SECOND_SITE_MODEL,
-    outputFormat: options.outputFormat ?? process.env.SECOND_SITE_OUTPUT_FORMAT,
-    paymentMode: options.paymentMode ?? process.env.SECOND_SITE_PAYMENT_MODE,
-    timeoutMs: readTimeoutMs(options.timeoutMs ?? process.env.SECOND_SITE_TIMEOUT_MS, 240000)
+    model: options.model ?? process.env.UPSTREAM_MODEL ?? process.env.SECOND_SITE_MODEL,
+    outputFormat: options.outputFormat ?? process.env.UPSTREAM_OUTPUT_FORMAT ?? process.env.SECOND_SITE_OUTPUT_FORMAT,
+    paymentMode: options.paymentMode ?? process.env.UPSTREAM_PAYMENT_MODE ?? process.env.SECOND_SITE_PAYMENT_MODE,
+    timeoutMs: readTimeoutMs(options.timeoutMs ?? process.env.UPSTREAM_TIMEOUT_MS ?? process.env.SECOND_SITE_TIMEOUT_MS, 240000)
   };
-}
-
-function normalizeBaseUrl(rawUrl) {
-  let url;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    throw invalidBaseUrlError();
-  }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
-    throw invalidBaseUrlError();
-  }
-  url.pathname = url.pathname.replace(/\/+$/, '');
-  return url.toString().replace(/\/$/, '');
-}
-
-function invalidBaseUrlError() {
-  return new AdapterError('Invalid second site base URL.', {
-    status: 500,
-    code: 'invalid_second_site_base_url'
-  });
 }
 
 function jsonHeaders() {
@@ -128,32 +119,18 @@ async function fetchWithTimeout(config, url, options) {
     });
   } catch (error) {
     if (error?.name === 'AbortError') {
-      throw new AdapterError('Second site request timed out.', {
+      throw new AdapterError('Upstream request timed out.', {
         status: 504,
-        code: 'second_site_timeout'
+        code: 'upstream_timeout'
       });
     }
-    throw new AdapterError('Second site network request failed.', {
+    throw new AdapterError('Upstream network request failed.', {
       status: 502,
-      code: 'second_site_network_error'
+      code: 'upstream_network_error'
     });
   } finally {
     clearTimeout(timeout);
   }
-}
-
-function readTimeoutMs(value, fallback) {
-  if (value === undefined || value === null || value === '') {
-    return fallback;
-  }
-  const numeric = Number(value);
-  if (!Number.isInteger(numeric) || numeric <= 0) {
-    throw new AdapterError('SECOND_SITE_TIMEOUT_MS must be a positive integer.', {
-      status: 500,
-      code: 'invalid_second_site_timeout_ms'
-    });
-  }
-  return numeric;
 }
 
 async function readJson(response) {

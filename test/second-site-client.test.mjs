@@ -74,7 +74,7 @@ test('rejects unsafe second-site base URLs during client creation', () => {
     (error) =>
       error instanceof AdapterError &&
       error.status === 500 &&
-      error.code === 'invalid_second_site_base_url'
+      error.code === 'invalid_upstream_base_url'
   );
 
   assert.throws(
@@ -82,7 +82,7 @@ test('rejects unsafe second-site base URLs during client creation', () => {
     (error) =>
       error instanceof AdapterError &&
       error.status === 500 &&
-      error.code === 'invalid_second_site_base_url'
+      error.code === 'invalid_upstream_base_url'
   );
 });
 
@@ -200,7 +200,7 @@ test('wraps upstream network failures as gateway errors', async () => {
     (error) =>
       error instanceof AdapterError &&
       error.status === 502 &&
-      error.code === 'second_site_network_error'
+      error.code === 'upstream_network_error'
   );
 });
 
@@ -247,7 +247,7 @@ test('aborts generation requests after the configured timeout', async () => {
     (error) =>
       error instanceof AdapterError &&
       error.status === 504 &&
-      error.code === 'second_site_timeout'
+      error.code === 'upstream_timeout'
   );
 });
 
@@ -262,6 +262,6 @@ test('rejects invalid timeout configuration instead of silently using a fallback
     (error) =>
       error instanceof AdapterError &&
       error.status === 500 &&
-      error.code === 'invalid_second_site_timeout_ms'
+      error.code === 'invalid_upstream_timeout_ms'
   );
 });

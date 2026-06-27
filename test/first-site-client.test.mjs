@@ -206,6 +206,6 @@ test('wraps first-site network failures as gateway errors', async () => {
 test('rejects unsafe first-site base URLs during client creation', () => {
   assert.throws(
     () => createFirstSiteClient({ baseUrl: 'https://user:pass@example.test' }),
-    (error) => error instanceof AdapterError && error.status === 500 && error.code === 'invalid_first_site_base_url'
+    (error) => error instanceof AdapterError && error.status === 500 && error.code === 'invalid_upstream_base_url'
   );
 });

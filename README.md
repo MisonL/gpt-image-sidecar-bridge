@@ -44,13 +44,13 @@
 
 ## 快速部署
 
-第二站 provider：
+默认上游 provider：
 
 ```bash
 cd <project-dir>
 export ADAPTER_API_KEY="<adapter-api-key>"
-export SECOND_SITE_EMAIL="your-email@example.com"
-export SECOND_SITE_PASSWORD="<upstream-password>"
+export UPSTREAM_EMAIL="your-email@example.com"
+export UPSTREAM_PASSWORD="<upstream-password>"
 ./scripts/deploy-docker.sh
 ```
 
@@ -60,8 +60,8 @@ export SECOND_SITE_PASSWORD="<upstream-password>"
 cd <project-dir>
 export GPT_IMAGE_BRIDGE_PROVIDER="first-site"
 export ADAPTER_API_KEY="<adapter-api-key>"
-export FIRST_SITE_EMAIL="your-email@example.com"
-export FIRST_SITE_PASSWORD="<upstream-password>"
+export UPSTREAM_EMAIL="your-email@example.com"
+export UPSTREAM_PASSWORD="<upstream-password>"
 ./scripts/deploy-docker.sh
 ```
 
@@ -71,7 +71,7 @@ export FIRST_SITE_PASSWORD="<upstream-password>"
 cd <project-dir>
 export GPT_IMAGE_BRIDGE_PROVIDER="first-site"
 export ADAPTER_API_KEY="<adapter-api-key>"
-export FIRST_SITE_SESSION_COOKIE_FILE="/path/to/first-site-session-cookie"
+export UPSTREAM_SESSION_COOKIE_FILE="/path/to/upstream-session-cookie"
 ./scripts/deploy-docker.sh
 ```
 
@@ -94,14 +94,14 @@ git pull --ff-only
 
 export GPT_IMAGE_BRIDGE_PROVIDER="first-site"
 export ADAPTER_API_KEY="$(cat "$HOME/.config/gpt-image-bridge/secrets/adapter-api-key")"
-export FIRST_SITE_SESSION_COOKIE_FILE="$HOME/.config/gpt-image-bridge/secrets/first-site-session-cookie"
+export UPSTREAM_SESSION_COOKIE_FILE="$HOME/.config/gpt-image-bridge/secrets/upstream-session-cookie"
 ./scripts/deploy-docker.sh
 ./scripts/check-standalone-deployment.sh
 ```
 
-按当前 provider 替换认证变量即可：第一站账号密码使用 `FIRST_SITE_EMAIL` 和
-`FIRST_SITE_PASSWORD`，第一站 session token 使用 `FIRST_SITE_SESSION_TOKEN_FILE`，
-第二站账号密码使用 `SECOND_SITE_EMAIL` 和 `SECOND_SITE_PASSWORD`。
+按当前 provider 替换认证变量即可：统一使用 `UPSTREAM_EMAIL`、`UPSTREAM_PASSWORD`、
+`UPSTREAM_SESSION_COOKIE_FILE` 或 `UPSTREAM_SESSION_TOKEN_FILE`。旧的站点编号变量名仅保留
+在客户端读取层的兼容回退，Docker 部署脚本优先按 `UPSTREAM_*` 处理。
 
 重新部署会替换同名容器 `gpt-image-bridge`，但不会把 secret 明文写入镜像或 Docker 环境变量。
 
@@ -239,39 +239,28 @@ streaming_strategy=off
 | `GPT_IMAGE_BRIDGE_CONFIG_DIR` | 本机 secret 目录，默认 `$HOME/.config/gpt-image-bridge`。 |
 | `GPT_IMAGE_BRIDGE_DOWNSTREAM_CONTAINER` | 仅用于验证下游容器网络边界。 |
 
-第一站配置：
+上游配置：
 
 | 变量 | 说明 |
 | --- | --- |
-| `FIRST_SITE_BASE_URL` | 第一站地址，默认 `https://gpt2image.superapi.buzz`。 |
-| `FIRST_SITE_MODEL` | 默认图片模型，默认 `gpt-image-2`。 |
-| `FIRST_SITE_EMAIL` / `FIRST_SITE_EMAIL_FILE` | 登录邮箱或邮箱文件。 |
-| `FIRST_SITE_PASSWORD` / `FIRST_SITE_PASSWORD_FILE` | 登录密码或密码文件。 |
-| `FIRST_SITE_SESSION_COOKIE` / `FIRST_SITE_SESSION_COOKIE_FILE` | 预置完整 session cookie。 |
-| `FIRST_SITE_SESSION_TOKEN` / `FIRST_SITE_SESSION_TOKEN_FILE` | 预置 Better Auth session token。 |
-| `FIRST_SITE_TIMEOUT_MS` | 请求超时，默认 `240000`。 |
-| `FIRST_SITE_OUTPUT_FORMAT` | 默认 `png`，可用 `png`、`jpeg`、`jpg`、`webp`。 |
-| `FIRST_SITE_SIZE` | 文生图默认尺寸，默认 `1024x1024`。 |
-| `FIRST_SITE_EDIT_SIZE` | 图生图默认尺寸，默认 `1024x1024`。 |
-| `FIRST_SITE_QUALITY` | 默认 `auto`，可用 `auto`、`low`、`medium`、`high`。 |
-| `FIRST_SITE_BACKGROUND` | 默认 `auto`，可用 `auto`、`opaque`、`transparent`。 |
-| `FIRST_SITE_THINKING` | 思考强度，默认 `low`。 |
-| `FIRST_SITE_MODERATION` | 审核参数，默认 `auto`。 |
-| `FIRST_SITE_MIX_WEB_FIRST` | 是否优先走 Web，默认 `true`。 |
-| `FIRST_SITE_PROMPT_OPTIMIZATION` | 提示词优化开关，默认 `false`。 |
-
-第二站配置：
-
-| 变量 | 说明 |
-| --- | --- |
-| `SECOND_SITE_BASE_URL` | 第二站地址，默认 `http://154.9.255.153:2254`。 |
-| `SECOND_SITE_MODEL` | 默认 `gpt-image-2`。 |
-| `SECOND_SITE_EMAIL` / `SECOND_SITE_EMAIL_FILE` | 登录邮箱或邮箱文件。 |
-| `SECOND_SITE_PASSWORD` / `SECOND_SITE_PASSWORD_FILE` | 登录密码或密码文件。 |
-| `SECOND_SITE_TOKEN` | 预置第二站 token；401 后仍会用邮箱密码刷新。 |
-| `SECOND_SITE_TIMEOUT_MS` | 请求超时，默认 `240000`。 |
-| `SECOND_SITE_PAYMENT_MODE` | 默认 `tier`。 |
-| `SECOND_SITE_OUTPUT_FORMAT` | 默认 `png`，可用 `png`、`jpeg`、`jpg`、`webp`。 |
+| `UPSTREAM_BASE_URL` | 上游地址。默认第一站 `https://gpt2image.superapi.buzz`，第二站 `http://154.9.255.153:2254`。 |
+| `UPSTREAM_MODEL` | 默认图片模型，默认 `gpt-image-2`。 |
+| `UPSTREAM_EMAIL` / `UPSTREAM_EMAIL_FILE` | 登录邮箱或邮箱文件。 |
+| `UPSTREAM_PASSWORD` / `UPSTREAM_PASSWORD_FILE` | 登录密码或密码文件。 |
+| `UPSTREAM_SESSION_COOKIE` / `UPSTREAM_SESSION_COOKIE_FILE` | 预置完整 session cookie。 |
+| `UPSTREAM_SESSION_TOKEN` / `UPSTREAM_SESSION_TOKEN_FILE` | 预置 Better Auth session token。 |
+| `UPSTREAM_TOKEN` / `UPSTREAM_TOKEN_FILE` | 第二类上游 token；仅 second-site provider 生效，401 后仍会用邮箱密码刷新。 |
+| `UPSTREAM_TIMEOUT_MS` | 请求超时，默认 `240000`。 |
+| `UPSTREAM_OUTPUT_FORMAT` | 默认 `png`，可用 `png`、`jpeg`、`jpg`、`webp`。 |
+| `UPSTREAM_SIZE` | 文生图默认尺寸，默认 `1024x1024`。 |
+| `UPSTREAM_EDIT_SIZE` | 图生图默认尺寸，默认 `1024x1024`。 |
+| `UPSTREAM_QUALITY` | 默认 `auto`，可用 `auto`、`low`、`medium`、`high`。 |
+| `UPSTREAM_BACKGROUND` | 默认 `auto`，可用 `auto`、`opaque`、`transparent`。 |
+| `UPSTREAM_THINKING` | 思考强度，默认 `low`。 |
+| `UPSTREAM_MODERATION` | 审核参数，默认 `auto`。 |
+| `UPSTREAM_MIX_WEB_FIRST` | 是否优先走 Web，默认 `true`。 |
+| `UPSTREAM_PROMPT_OPTIMIZATION` | 提示词优化开关，默认 `false`。 |
+| `UPSTREAM_PAYMENT_MODE` | 第二类上游支付模式，默认 `tier`，仅 second-site provider 生效。 |
 
 ## 错误排查
 
@@ -285,8 +274,11 @@ streaming_strategy=off
 | `502 invalid_upstream_image_response` | 上游 200 响应缺少 `b64_json` | 检查上游接口格式是否变化。 |
 | `503/502 first_site_login_failed` | 第一站登录失败 | 检查账号、密码、cookie 或 token。 |
 | `503 No available compatible accounts` | 第二站账号池或额度不可用 | 处理第二站账号池或额度。 |
-| `504 first_site_timeout` | 第一站请求超时 | 增大 `FIRST_SITE_TIMEOUT_MS` 或检查第一站状态。 |
-| `504 second_site_timeout` | 第二站请求超时 | 增大 `SECOND_SITE_TIMEOUT_MS` 或检查第二站状态。 |
+| `502 upstream_network_error` | 上游网络失败 | 检查上游地址、网络和容器可达性。 |
+| `504 upstream_timeout` | 上游请求超时 | 增大 `UPSTREAM_TIMEOUT_MS` 或检查上游状态。 |
+| `500 invalid_upstream_base_url` | 上游地址不合法 | 检查 `UPSTREAM_BASE_URL`。 |
+| `500 invalid_upstream_timeout_ms` | 超时配置不合法 | 检查 `UPSTREAM_TIMEOUT_MS`。 |
+| `500 missing_first_site_credentials` | 第一站登录凭据缺失 | 检查 `UPSTREAM_EMAIL` / `UPSTREAM_PASSWORD`。 |
 
 ## 已知限制
 
