@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { createFirstSiteClient } from '../src/first-site-client.mjs';
+import { imageResponse, jsonResponse } from './first-site-test-helpers.mjs';
 import { restoreEnv } from './test-helpers.mjs';
 
 test('reads first-site credentials from files without requiring credential env vars', async () => {
@@ -27,7 +28,7 @@ test('reads first-site credentials from files without requiring credential env v
             });
           }
           if (url.endsWith('/api/images/generate')) return jsonResponse(200, imageBody());
-          if (url.endsWith('/api/storage/generated.png')) return imageResponse();
+          if (url.endsWith('/api/storage/generated.png')) return imageResponse('image-bytes');
           throw new Error(`unexpected url: ${url}`);
         }
       });
@@ -78,7 +79,7 @@ test('reads first-site credentials from legacy env vars without upstream env var
           });
         }
         if (url.endsWith('/api/images/generate')) return jsonResponse(200, imageBody());
-        if (url.endsWith('/api/storage/generated.png')) return imageResponse();
+        if (url.endsWith('/api/storage/generated.png')) return imageResponse('image-bytes');
         throw new Error(`unexpected url: ${url}`);
       }
     });
@@ -128,18 +129,4 @@ function imageBody() {
     imageUrl: '/api/storage/generated.png',
     imageOutputs: [{ imageUrl: '/api/storage/generated.png' }]
   };
-}
-
-function jsonResponse(status, body, headers = {}) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', ...headers }
-  });
-}
-
-function imageResponse() {
-  return new Response(Buffer.from('image-bytes'), {
-    status: 200,
-    headers: { 'content-type': 'image/png' }
-  });
 }
